@@ -279,7 +279,7 @@ tr:hover td { background: var(--bg); }
 <body>
 
 <!-- SIDEBAR -->
-<aside class="sidebar">
+<div id="app" style="display:none;width:100%;"><aside class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-wordmark">Gestão<span>Agro</span></div>
     <div class="logo-sub">Sistema de Gestão</div>
@@ -340,8 +340,8 @@ tr:hover td { background: var(--bg); }
   </nav>
 
   <div class="sidebar-footer">
-    <strong>Administrador</strong>
-    admin@sistema.com
+    <strong id="user-email-display">Carregando...</strong>
+    <button onclick="fazerLogout()" style="margin-top:8px;width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.5);border-radius:6px;padding:5px;font-size:11px;cursor:pointer;font-family:var(--font);">Sair do sistema</button>
   </div>
 </aside>
 
@@ -609,9 +609,57 @@ function planoNome(id) {
 }
 
 // ============================================================
+// LOGIN / AUTH
+// ============================================================
+function mostrarLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+function esconderLogin() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+}
+async function fazerLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const btn = document.getElementById('login-btn');
+  const erro = document.getElementById('login-erro');
+  erro.textContent = '';
+  btn.textContent = 'Entrando...';
+  btn.disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if (error) {
+    erro.textContent = 'E-mail ou senha incorretos.';
+    btn.textContent = 'Entrar';
+    btn.disabled = false;
+    return;
+  }
+  esconderLogin();
+  await iniciarApp();
+}
+async function fazerLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') fazerLogin();
+});
+
+// ============================================================
 // INIT
 // ============================================================
 async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { mostrarLogin(); return; }
+  esconderLogin();
+  await iniciarApp();
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') location.reload();
+  });
+}
+async function iniciarApp() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (user) document.getElementById('user-email-display').textContent = user.email;
   await carregarGrupos();
   await carregarEmpresas();
   await carregarPlanos();
@@ -1046,5 +1094,26 @@ async function salvarReceber() {
 // ============================================================
 init();
 </script>
+</div>
+<!-- TELA DE LOGIN -->
+<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 40px;width:380px;box-shadow:var(--shadow-md);">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--text)">Gestão<span style="color:#2A9070">Agro</span></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px;letter-spacing:.08em;text-transform:uppercase">Sistema de Gestão</div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:11.5px;font-weight:500;color:var(--text2);display:block;margin-bottom:5px">E-mail</label>
+      <input id="login-email" type="email" class="form-input" placeholder="seu@email.com" autofocus>
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:11.5px;font-weight:500;color:var(--text2);display:block;margin-bottom:5px">Senha</label>
+      <input id="login-senha" type="password" class="form-input" placeholder="••••••••">
+    </div>
+    <div id="login-erro" style="font-size:12px;color:var(--red);margin-bottom:12px;min-height:16px;text-align:center;"></div>
+    <button id="login-btn" class="btn btn-primary" onclick="fazerLogin()" style="width:100%;justify-content:center;padding:10px;">Entrar</button>
+    <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:16px;">Acesso restrito — use suas credenciais</div>
+  </div>
+</div>
 </body>
 </html>
