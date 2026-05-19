@@ -368,8 +368,54 @@ tr:hover td { background: var(--bg); }
           <div class="card-body"><div class="chart-container"><canvas id="chartFluxo"></canvas></div></div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Cotações</div><div class="card-sub" id="cot-hora">ao vivo</div></div>
-          <div class="card-body" id="cot-mini"></div>
+          <div class="card-header"><div class="card-title">Cotações</div><div class="card-sub">tempo real · TradingView</div></div>
+          <div class="card-body" style="padding:10px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+
+            <!-- Dólar -->
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🇺🇸 Dólar</div>
+              <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
+                {"symbol":"FX:USDBRL","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}
+                </script>
+              </div>
+            </div>
+
+            <!-- Euro -->
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🇪🇺 Euro</div>
+              <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
+                {"symbol":"FX:EURBRL","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}
+                </script>
+              </div>
+            </div>
+
+            <!-- Boi Gordo -->
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🐂 Boi Gordo</div>
+              <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
+                {"symbol":"BMFBOVESPA:BGI1!","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}
+                </script>
+              </div>
+            </div>
+
+            <!-- Soja -->
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🌱 Soja Chicago</div>
+              <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
+                {"symbol":"CBOT:ZS1!","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}
+                </script>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
       <div class="card">
@@ -386,48 +432,93 @@ tr:hover td { background: var(--bg); }
     <!-- COTAÇÕES -->
     <div class="page" id="page-cotacoes">
 
-      <!-- Ticker tape TradingView -->
-      <div class="card" style="margin-bottom:14px;overflow:hidden">
-        <div class="card-header"><div class="card-title">Mercados ao vivo</div><div class="card-sub">via TradingView · tempo real</div></div>
-        <div id="tv-ticker"></div>
+      <!-- Ticker tape -->
+      <div style="margin-bottom:14px;overflow:hidden;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface)">
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>{"symbols":[{"proName":"BMFBOVESPA:BGI1!","title":"Boi Gordo Cont."},{"proName":"BMFBOVESPA:BGIM2026","title":"BGI Jun/26"},{"proName":"BMFBOVESPA:BGIN2026","title":"BGI Jul/26"},{"proName":"BMFBOVESPA:BGIQ2026","title":"BGI Ago/26"},{"proName":"BMFBOVESPA:BGIU2026","title":"BGI Set/26"},{"proName":"BMFBOVESPA:BGIV2026","title":"BGI Out/26"},{"proName":"CBOT:ZS1!","title":"Soja Chicago"},{"proName":"FX:USDBRL","title":"Dólar"},{"proName":"FX:EURBRL","title":"Euro"}],"showSymbolLogo":true,"isTransparent":true,"displayMode":"adaptive","colorTheme":"light","locale":"br"}</script>
+        </div>
       </div>
 
       <div class="grid2" style="margin-bottom:14px">
-        <!-- Dólar e Euro -->
+        <!-- Dólar/Euro gráfico -->
         <div class="card">
-          <div class="card-header"><div class="card-title">🇺🇸 Dólar · 🇪🇺 Euro</div><div class="card-sub">USD/BRL · EUR/BRL</div></div>
-          <div class="card-body" style="padding:0">
-            <div id="tv-dolar" style="height:300px"></div>
+          <div class="card-header"><div class="card-title">🇺🇸 Dólar / 🇪🇺 Euro</div><div class="card-sub">USD/BRL · EUR/BRL · tempo real</div></div>
+          <div style="height:320px">
+            <div class="tradingview-widget-container" style="height:100%">
+              <div class="tradingview-widget-container__widget" style="height:100%"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>{"autosize":true,"symbol":"FX:USDBRL","interval":"D","timezone":"America/Sao_Paulo","theme":"light","style":"1","locale":"br","backgroundColor":"rgba(255,255,255,0)","save_image":false,"compare_symbols":[{"symbol":"FX:EURBRL","position":"SameScale"}]}</script>
+            </div>
           </div>
         </div>
-        <!-- Cotações rápidas -->
+
+        <!-- Tabela preços rápidos -->
         <div class="card">
-          <div class="card-header"><div class="card-title">Resumo de mercado</div><div class="card-sub">principais ativos</div></div>
-          <div class="card-body" style="padding:0">
-            <div id="tv-market" style="height:300px"></div>
+          <div class="card-header"><div class="card-title">📊 Preços agora</div><div class="card-sub">principais ativos</div></div>
+          <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">🇺🇸 Dólar</div>
+              <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>{"symbol":"FX:USDBRL","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}</script></div>
+            </div>
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">🇪🇺 Euro</div>
+              <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>{"symbol":"FX:EURBRL","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}</script></div>
+            </div>
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">🐂 Boi Gordo</div>
+              <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>{"symbol":"BMFBOVESPA:BGI1!","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}</script></div>
+            </div>
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">🌱 Soja Chicago</div>
+              <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>{"symbol":"CBOT:ZS1!","width":"100%","colorTheme":"light","isTransparent":true,"locale":"br"}</script></div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Boi Gordo Futuros -->
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">🐂 Boi Gordo — Contratos Futuros (BGI)</div><div class="card-sub">B3 · vencimentos mensais</div></div>
-        <div class="card-body" style="padding:0">
-          <div id="tv-boi" style="height:420px"></div>
+        <div class="card-header"><div class="card-title">🐂 Boi Gordo — Contratos Futuros (BGI)</div><div class="card-sub">B3 · múltiplos vencimentos sobrepostos</div></div>
+        <div style="height:420px">
+          <div class="tradingview-widget-container" style="height:100%">
+            <div class="tradingview-widget-container__widget" style="height:100%"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>{"autosize":true,"symbol":"BMFBOVESPA:BGI1!","interval":"D","timezone":"America/Sao_Paulo","theme":"light","style":"1","locale":"br","backgroundColor":"rgba(255,255,255,0)","save_image":false,"compare_symbols":[{"symbol":"BMFBOVESPA:BGI2!","position":"SameScale"},{"symbol":"BMFBOVESPA:BGI3!","position":"SameScale"},{"symbol":"BMFBOVESPA:BGI4!","position":"SameScale"}]}</script>
+          </div>
         </div>
       </div>
 
-      <!-- Soja Chicago -->
+      <!-- Soja Chicago Futuros -->
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">🌱 Soja — Contratos Futuros (ZS)</div><div class="card-sub">CBOT Chicago · vencimentos mensais</div></div>
-        <div class="card-body" style="padding:0">
-          <div id="tv-soja" style="height:420px"></div>
+        <div class="card-header"><div class="card-title">🌱 Soja Chicago — Contratos Futuros (ZS)</div><div class="card-sub">CBOT · múltiplos vencimentos sobrepostos</div></div>
+        <div style="height:420px">
+          <div class="tradingview-widget-container" style="height:100%">
+            <div class="tradingview-widget-container__widget" style="height:100%"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>{"autosize":true,"symbol":"CBOT:ZS1!","interval":"D","timezone":"America/Sao_Paulo","theme":"light","style":"1","locale":"br","backgroundColor":"rgba(255,255,255,0)","save_image":false,"compare_symbols":[{"symbol":"CBOT:ZS2!","position":"SameScale"},{"symbol":"CBOT:ZS3!","position":"SameScale"}]}</script>
+          </div>
+        </div>
+      </div>
+
+      <!-- Link curva projetada -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">📈 Curva Projetada — Boi Gordo</div><div class="card-sub">Expectativa de preço por vencimento mensal</div></div>
+        <div style="padding:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:13px;color:var(--text2);line-height:1.6">A curva projetada mostra as expectativas do mercado para cada vencimento futuro do Boi Gordo — uma ferramenta essencial para planejamento de vendas e compras.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="https://br.tradingview.com/symbols/BMFBOVESPA-BGI1/contracts/" target="_blank" class="btn btn-primary" style="text-decoration:none">🐂 Contratos BGI mês a mês</a>
+            <a href="https://br.tradingview.com/symbols/CBOT-ZS1/contracts/" target="_blank" class="btn btn-ghost" style="text-decoration:none">🌱 Contratos Soja mês a mês</a>
+          </div>
         </div>
       </div>
 
     </div>
 
-    <!-- EXTRATO -->
+        <!-- EXTRATO -->
     <div class="page" id="page-extrato">
       <div class="emp-tabs" id="tabs-extrato"></div>
       <div class="card">
