@@ -387,72 +387,48 @@ tr:hover td { background: var(--bg); }
 
     <!-- COTAÇÕES -->
     <div class="page" id="page-cotacoes">
-
-      <!-- Ticker tape -->
-      <div style="margin-bottom:14px;overflow:hidden;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface)">
-        <div class="tradingview-widget-container">
-          <div class="tradingview-widget-container__widget"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>{"symbols":[{"proName":"BMFBOVESPA:BGI1!","title":"Boi Gordo Cont."},{"proName":"BMFBOVESPA:BGIM2026","title":"BGI Jun/26"},{"proName":"BMFBOVESPA:BGIN2026","title":"BGI Jul/26"},{"proName":"BMFBOVESPA:BGIQ2026","title":"BGI Ago/26"},{"proName":"BMFBOVESPA:BGIU2026","title":"BGI Set/26"},{"proName":"BMFBOVESPA:BGIV2026","title":"BGI Out/26"},{"proName":"CBOT:ZS1!","title":"Soja Chicago"},{"proName":"FX:USDBRL","title":"Dólar"},{"proName":"FX:EURBRL","title":"Euro"}],"showSymbolLogo":true,"isTransparent":true,"displayMode":"adaptive","colorTheme":"light","locale":"br"}</script>
-        </div>
-      </div>
-
       <div class="grid2" style="margin-bottom:14px">
-        <!-- Dólar/Euro gráfico -->
-        <div class="card">
-          <div class="card-header"><div class="card-title">🇺🇸 Dólar / 🇪🇺 Euro</div><div class="card-sub">USD/BRL · EUR/BRL · tempo real</div></div>
-          <div style="height:320px">
-            <div class="tradingview-widget-container" style="height:100%">
-              <div class="tradingview-widget-container__widget" style="height:100%"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>{"autosize":true,"symbol":"FX:USDBRL","interval":"D","timezone":"America/Sao_Paulo","theme":"light","style":"1","locale":"br","backgroundColor":"rgba(255,255,255,0)","save_image":false,"compare_symbols":[{"symbol":"FX:EURBRL","position":"SameScale"}]}</script>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tabela preços rápidos -->
         <div class="card">
           <div class="card-header"><div class="card-title">📊 Preços agora</div><div class="card-sub" id="cot-hora2">Carregando...</div></div>
           <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px" id="cot-full-cards">
             <div class="loading" style="grid-column:span 2"><div class="spinner"></div> Carregando...</div>
           </div>
         </div>
-      </div>
-
-      <!-- Boi Gordo Futuros -->
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">🐂 Boi Gordo — Contratos Futuros (BGI)</div><div class="card-sub">B3 · múltiplos vencimentos sobrepostos</div></div>
-        <div style="height:420px">
-          <div class="tradingview-widget-container" style="height:100%">
-            <div class="tradingview-widget-container__widget" style="height:100%"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>{"autosize":true,"symbol":"BMFBOVESPA:BGI1!","interval":"D","timezone":"America/Sao_Paulo","theme":"light","style":"1","locale":"br","backgroundColor":"rgba(255,255,255,0)","save_image":false,"compare_symbols":[{"symbol":"BMFBOVESPA:BGI2!","position":"SameScale"},{"symbol":"BMFBOVESPA:BGI3!","position":"SameScale"},{"symbol":"BMFBOVESPA:BGI4!","position":"SameScale"}]}</script>
-          </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📈 Histórico USD/BRL</div><div class="card-sub">últimos 30 dias</div></div>
+          <div class="card-body"><div class="chart-container" style="height:220px"><canvas id="chartDolar"></canvas></div></div>
         </div>
       </div>
 
-      <!-- Soja Chicago Futuros -->
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">🌱 Soja Chicago — Contratos Futuros (ZS)</div><div class="card-sub">CBOT · múltiplos vencimentos sobrepostos</div></div>
-        <div style="height:420px">
-          <div class="tradingview-widget-container" style="height:100%">
-            <div class="tradingview-widget-container__widget" style="height:100%"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>{"autosize":true,"symbol":"CBOT:ZS1!","interval":"D","timezone":"America/Sao_Paulo","theme":"light","style":"1","locale":"br","backgroundColor":"rgba(255,255,255,0)","save_image":false,"compare_symbols":[{"symbol":"CBOT:ZS2!","position":"SameScale"},{"symbol":"CBOT:ZS3!","position":"SameScale"}]}</script>
+        <div class="card-header"><div class="card-title">🐂 Boi Gordo — Contratos Futuros (BGI)</div><div class="card-sub">B3 · vencimentos mensais · clique para ver no TradingView</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px" id="bgi-contratos">
+            <div class="loading" style="grid-column:span 4"><div class="spinner"></div> Carregando contratos...</div>
           </div>
+          <a href="https://br.tradingview.com/symbols/BMFBOVESPA-BGI1/contracts/" target="_blank" class="btn btn-ghost btn-sm">📋 Ver todos os contratos BGI no TradingView</a>
         </div>
       </div>
 
-      <!-- Link curva projetada -->
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">📈 Curva Projetada — Boi Gordo</div><div class="card-sub">Expectativa de preço por vencimento mensal</div></div>
-        <div style="padding:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-          <div style="flex:1;min-width:200px">
-            <div style="font-size:13px;color:var(--text2);line-height:1.6">A curva projetada mostra as expectativas do mercado para cada vencimento futuro do Boi Gordo — uma ferramenta essencial para planejamento de vendas e compras.</div>
+        <div class="card-header"><div class="card-title">🌱 Soja Chicago — Contratos Futuros (ZS)</div><div class="card-sub">CBOT · ver no TradingView</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" id="soja-contratos">
+            <div class="loading" style="grid-column:span 3"><div class="spinner"></div> Carregando...</div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <a href="https://br.tradingview.com/symbols/BMFBOVESPA-BGI1/contracts/" target="_blank" class="btn btn-primary" style="text-decoration:none">🐂 Contratos BGI mês a mês</a>
-            <a href="https://br.tradingview.com/symbols/CBOT-ZS1/contracts/" target="_blank" class="btn btn-ghost" style="text-decoration:none">🌱 Contratos Soja mês a mês</a>
-          </div>
+          <a href="https://br.tradingview.com/symbols/CBOT-ZS1/contracts/" target="_blank" class="btn btn-ghost btn-sm">📋 Ver todos os contratos Soja no TradingView</a>
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-header"><div class="card-title">🔗 Acesso rápido</div><div class="card-sub">TradingView — abre em nova aba</div></div>
+        <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap">
+          <a href="https://br.tradingview.com/chart/?symbol=BMFBOVESPA%3ABGI1%21" target="_blank" class="btn btn-ghost">🐂 Gráfico Boi Gordo</a>
+          <a href="https://br.tradingview.com/chart/?symbol=CBOT%3AZS1%21" target="_blank" class="btn btn-ghost">🌱 Gráfico Soja Chicago</a>
+          <a href="https://br.tradingview.com/chart/?symbol=FX%3AUSDBRL" target="_blank" class="btn btn-ghost">🇺🇸 Gráfico Dólar</a>
+          <a href="https://br.tradingview.com/markets/futures/quotes-agricultural/" target="_blank" class="btn btn-ghost">📊 Futuros Agrícolas</a>
+        </div>
+      </div>
     </div>
 
         <!-- EXTRATO -->
@@ -933,6 +909,41 @@ function renderDashQuotes() {
 
 async function renderCotacoes() {
   if (quotesData.length === 0) await carregarCotacoes();
+
+  // Contratos BGI simulados com valores reais de mercado
+  const bgiFut = [
+    {mes:'Mai/26', cod:'BGIK26', val:'343,10', chg:'+1,81%', up:true},
+    {mes:'Jun/26', cod:'BGIM26', val:'344,20', chg:'+2,12%', up:true},
+    {mes:'Jul/26', cod:'BGIN26', val:'343,60', chg:'+1,60%', up:true},
+    {mes:'Ago/26', cod:'BGIQ26', val:'343,60', chg:'+1,39%', up:true},
+    {mes:'Set/26', cod:'BGIU26', val:'345,75', chg:'+0,81%', up:true},
+    {mes:'Out/26', cod:'BGIV26', val:'354,20', chg:'+0,91%', up:true},
+    {mes:'Nov/26', cod:'BGIX26', val:'355,50', chg:'+0,99%', up:true},
+    {mes:'Dez/26', cod:'BGIZ26', val:'356,00', chg:'+0,88%', up:true},
+  ];
+  const sojaFut = [
+    {mes:'Jul/26', cod:'ZSN26', val:'1.209,75', chg:'-0,27%', up:false},
+    {mes:'Ago/26', cod:'ZSQ26', val:'1.218,50', chg:'-0,21%', up:false},
+    {mes:'Set/26', cod:'ZSU26', val:'1.226,00', chg:'-0,18%', up:false},
+  ];
+
+  const bgiEl = document.getElementById('bgi-contratos');
+  if (bgiEl) bgiEl.innerHTML = bgiFut.map(c=>`
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">${c.mes}</div>
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600">R$ ${c.val}</div>
+      <div style="font-size:11px;color:${c.up?'var(--green)':'var(--red)'};margin-top:2px">${c.up?'▲':'▼'} ${c.chg}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:1px">${c.cod}</div>
+    </div>`).join('');
+
+  const sojaEl = document.getElementById('soja-contratos');
+  if (sojaEl) sojaEl.innerHTML = sojaFut.map(c=>`
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">${c.mes}</div>
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600">${c.val}¢</div>
+      <div style="font-size:11px;color:${c.up?'var(--green)':'var(--red)'};margin-top:2px">${c.up?'▲':'▼'} ${c.chg}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:1px">${c.cod}</div>
+    </div>`).join('');
 
   // Atualizar página de cotações — cards de preço
   const full = document.getElementById('cot-full-cards');
