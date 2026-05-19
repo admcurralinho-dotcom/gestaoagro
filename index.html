@@ -369,13 +369,8 @@ tr:hover td { background: var(--bg); }
         </div>
         <div class="card">
           <div class="card-header"><div class="card-title">Cotações</div><div class="card-sub">tempo real · TradingView</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="tradingview-widget-container">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
-              {"colorTheme":"light","dateRange":"1D","showChart":false,"locale":"br","isTransparent":true,"showSymbolLogo":true,"showFloatingTooltip":false,"width":"100%","height":"280","tabs":[{"title":"Câmbio & Commodities","symbols":[{"s":"FX:USDBRL","d":"🇺🇸 Dólar"},{"s":"FX:EURBRL","d":"🇪🇺 Euro"},{"s":"BMFBOVESPA:BGI1!","d":"🐂 Boi Gordo"},{"s":"CBOT:ZS1!","d":"🌱 Soja Chicago"}],"originalTitle":"Câmbio & Commodities"}]}
-              </script>
-            </div>
+          <div class="card-body" style="padding:10px 12px" id="dash-quotes-body">
+            <div class="loading"><div class="spinner"></div> Carregando cotações...</div>
           </div>
         </div>
       </div>
@@ -415,14 +410,9 @@ tr:hover td { background: var(--bg); }
 
         <!-- Tabela preços rápidos -->
         <div class="card">
-          <div class="card-header"><div class="card-title">📊 Preços agora</div><div class="card-sub">principais ativos</div></div>
-          <div style="padding:0">
-            <div class="tradingview-widget-container">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
-              {"colorTheme":"light","dateRange":"1D","showChart":false,"locale":"br","isTransparent":true,"showSymbolLogo":true,"showFloatingTooltip":false,"width":"100%","height":"300","tabs":[{"title":"Câmbio & Commodities","symbols":[{"s":"FX:USDBRL","d":"🇺🇸 Dólar"},{"s":"FX:EURBRL","d":"🇪🇺 Euro"},{"s":"BMFBOVESPA:BGI1!","d":"🐂 Boi Gordo"},{"s":"CBOT:ZS1!","d":"🌱 Soja Chicago"}],"originalTitle":"Câmbio & Commodities"}]}
-              </script>
-            </div>
+          <div class="card-header"><div class="card-title">📊 Preços agora</div><div class="card-sub" id="cot-hora2">Carregando...</div></div>
+          <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px" id="cot-full-cards">
+            <div class="loading" style="grid-column:span 2"><div class="spinner"></div> Carregando...</div>
           </div>
         </div>
       </div>
@@ -751,6 +741,236 @@ async function carregarEmpresas() {
 async function carregarPlanos() {
   const { data } = await sb.from('plano_contas').select('*').order('codigo');
   planos = data || [];
+}
+
+// ============================================================
+// SIDEBAR
+// ============================================================
+function renderSidebar() {
+  // Group dropdown
+  const grp = grupos.find(g=>g.id===grupoAtivo);
+  document.getElementById('grp-name').textContent = grp?.nome || '--';
+  document.getElementById('grp-dd').innerHTML = grupos.map(g=>`
+    <div class="group-opt ${g.id===grupoAtivo?'active':''}" onclick="selectGrupo('${g.id}')">
+      <div class="g-dot" style="background:${g.id===grupoAtivo?'#4DD9A0':'rgba(255,255,255,0.3)'}"></div>
+      <div>
+        <div style="font-weight:500">${g.nome}</div>
+        <div style="font-size:10px;opacity:.5">${empresas.filter(e=>e.grupo_id===g.id).length} unidades</div>
+      </div>
+    </div>`).join('');
+  renderEmpList();
+}
+function renderEmpList() {
+  const emps = empresas.filter(e=>e.grupo_id===grupoAtivo);
+  document.getElementById('emp-list').innerHTML = emps.map(e=>`
+    <div class="emp-item ${empresaAtiva===e.id?'active':''}" onclick="selectEmpresa('${e.id}')">
+      <div class="emp-dot"></div>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:11.5px">${e.nome.replace('- Matriz','').replace('Ltda','').trim()}</span>
+      ${e.is_matriz?'<span class="emp-mtz">MTZ</span>':''}
+    </div>`).join('');
+}
+function toggleGroupDD() { document.getElementById('grp-dd').classList.toggle('open'); }
+async function selectGrupo(id) {
+  grupoAtivo = id; empresaAtiva = null;
+  document.getElementById('grp-dd').classList.remove('open');
+  renderSidebar();
+  await renderPage(paginaAtiva);
+}
+async function selectEmpresa(id) {
+  empresaAtiva = empresaAtiva === id ? null : id;
+  renderEmpList();
+  await renderPage(paginaAtiva);
+}
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+const PAGE_TITLES = { dashboard:'Dashboard', cotacoes:'Cotações', extrato:'Extrato Bancário', pagar:'Contas a Pagar', receber:'Contas a Receber', conciliacao:'Conciliação Bancária', plano:'Plano de Contas', empresas:'Empresas' };
+async function navigate(page) {
+  paginaAtiva = page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
+  // Topbar actions
+  const acts = {
+    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}],
+    pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
+    receber: [{label:'+ Nova conta a receber', cls:'btn-primary', fn:'openModal("modal-receber")'}],
+  };
+  const bar = document.getElementById('topbar-actions');
+  bar.innerHTML = (acts[page]||[]).map(a=>`<button class="btn ${a.cls}" onclick="${a.fn}">${a.label}</button>`).join('');
+  await renderPage(page);
+}
+async function renderPage(page) {
+  if (page==='dashboard')    await renderDashboard();
+  if (page==='cotacoes')     renderCotacoes();
+  if (page==='extrato')      await renderExtrato();
+  if (page==='pagar')        await renderPagar();
+  if (page==='receber')      await renderReceber();
+  if (page==='conciliacao')  await renderConciliacao();
+  if (page==='plano')        renderPlano();
+  if (page==='empresas')     renderEmpresas();
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function renderDashboard() {
+  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
+  const resExt = await sb.from('movimentacao_bancaria').select('*').in('empresa_id', empIds);
+  const resCp  = await sb.from('contas_pagar').select('*').in('empresa_id', empIds);
+  const resCr  = await sb.from('contas_receber').select('*').in('empresa_id', empIds);
+  const extrato = resExt.data||[], pagar = resCp.data||[], receber = resCr.data||[];
+  const totalRec = extrato.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
+  const totalDes = extrato.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
+  const totalPagar = pagar.filter(r=>r.status!=='pago'&&r.status!=='cancelado').reduce((s,r)=>s+Number(r.valor),0);
+  const totalReceber = receber.filter(r=>r.status!=='recebido').reduce((s,r)=>s+Number(r.valor),0);
+  const atrasados = pagar.filter(r=>r.status==='atrasado').length;
+
+  document.getElementById('dash-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Receitas (extrato)</div><div class="metric-value">${fmt(totalRec)}</div><div class="metric-delta delta-up">↑ Créditos lançados</div></div>
+    <div class="metric"><div class="metric-label">Despesas (extrato)</div><div class="metric-value">${fmt(totalDes)}</div><div class="metric-delta delta-down">↓ Débitos lançados</div></div>
+    <div class="metric"><div class="metric-label">A pagar (em aberto)</div><div class="metric-value">${fmt(totalPagar)}</div><div class="metric-delta ${atrasados>0?'delta-down':'delta-warn'}">${atrasados>0?'⚠ '+atrasados+' em atraso':'Sem atrasos'}</div></div>
+    <div class="metric"><div class="metric-label">A receber</div><div class="metric-value">${fmt(totalReceber)}</div><div class="metric-delta delta-up">↑ Aguardando</div></div>
+  `;
+
+  // Vencimentos
+  const proximos = pagar.filter(r=>r.status!=='pago').sort((a,b)=>a.vencimento?.localeCompare(b.vencimento)).slice(0,6);
+  document.getElementById('dash-venc').innerHTML = proximos.length
+    ? proximos.map(r=>`<tr><td>${r.fornecedor}</td><td style="color:var(--text2);font-size:12px">${empNome(r.empresa_id)}</td><td>${fmtDate(r.vencimento)}</td><td class="td-mono">${fmt(r.valor)}</td><td>${badgeStatus(r.status)}</td></tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text3)">Nenhuma conta a pagar cadastrada</td></tr>`;
+
+  // Fluxo chart
+  const creditos = extrato.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
+  const debitos  = extrato.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
+  if (charts.fluxo) charts.fluxo.destroy();
+  const ctxF = document.getElementById('chartFluxo');
+  if (ctxF) charts.fluxo = new Chart(ctxF, {
+    type:'bar',
+    data:{ labels:['Receitas','Despesas','Saldo'], datasets:[{ data:[creditos, debitos, creditos-debitos], backgroundColor:['#1A6B50','#B83030', creditos-debitos>=0?'#2A9070':'#D05050'], borderRadius:6, barPercentage:0.5 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmt(c.parsed.y)}}}, scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}} } }
+  });
+}
+
+// ============================================================
+// COTAÇÕES
+// ============================================================
+// ============================================================
+// COTAÇÕES — AwesomeAPI + Yahoo Finance
+// ============================================================
+let quotesData = [];
+
+async function carregarCotacoes() {
+  try {
+    // Dólar e Euro via AwesomeAPI (gratuita, brasileira, sem CORS)
+    const [resCambio, resSoja] = await Promise.all([
+      fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL').then(r=>r.json()),
+      fetch('https://query1.finance.yahoo.com/v8/finance/chart/ZS=F?interval=1d&range=1d').then(r=>r.json()).catch(()=>null),
+    ]);
+
+    const usd = resCambio?.USDBRL;
+    const eur = resCambio?.EURBRL;
+
+    // Soja Chicago via Yahoo
+    const sojaResult = resSoja?.chart?.result?.[0]?.meta;
+    const sojaPrice = sojaResult?.regularMarketPrice;
+    const sojaPrev  = sojaResult?.chartPreviousClose;
+    const sojaChg   = sojaPrice && sojaPrev ? ((sojaPrice - sojaPrev) / sojaPrev * 100) : 0;
+
+    quotesData = [
+      {
+        flag: '🇺🇸', name: 'Dólar', code: 'USD/BRL',
+        val: usd ? 'R$ ' + parseFloat(usd.bid).toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4}) : '--',
+        chgStr: usd ? (parseFloat(usd.pctChange) >= 0 ? '+' : '') + parseFloat(usd.pctChange).toFixed(2) + '%' : '--',
+        up: usd ? parseFloat(usd.pctChange) >= 0 : true,
+      },
+      {
+        flag: '🇪🇺', name: 'Euro', code: 'EUR/BRL',
+        val: eur ? 'R$ ' + parseFloat(eur.bid).toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4}) : '--',
+        chgStr: eur ? (parseFloat(eur.pctChange) >= 0 ? '+' : '') + parseFloat(eur.pctChange).toFixed(2) + '%' : '--',
+        up: eur ? parseFloat(eur.pctChange) >= 0 : true,
+      },
+      {
+        flag: '🐂', name: 'Boi Gordo', code: 'BGI · ESALQ ref.',
+        val: 'R$ 343,10',
+        chgStr: '+1,81%',
+        up: true,
+        manual: true,
+      },
+      {
+        flag: '🌱', name: 'Soja Chicago', code: 'ZS · CBOT (¢/bu)',
+        val: sojaPrice ? sojaPrice.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '--',
+        chgStr: (sojaChg >= 0 ? '+' : '') + sojaChg.toFixed(2) + '%',
+        up: sojaChg >= 0,
+      },
+    ];
+
+    renderDashQuotes();
+
+    const hora = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    ['cot-hora','cot-hora2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='Atualizado às '+hora; });
+
+  } catch(e) {
+    console.error('Erro cotações:', e);
+  }
+}
+
+function renderDashQuotes() {
+  const el = document.getElementById('dash-quotes-body');
+  if (!el) return;
+  el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">` +
+    quotesData.map(q => `
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${q.flag} ${q.name}</div>
+        <div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text)">${q.val}</div>
+        <div style="font-size:11px;font-weight:500;margin-top:3px;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chgStr}${q.manual?' · manual':''}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">${q.code}</div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+async function renderCotacoes() {
+  if (quotesData.length === 0) await carregarCotacoes();
+
+  // Atualizar página de cotações — cards de preço
+  const full = document.getElementById('cot-full-cards');
+  if (full) {
+    full.innerHTML = quotesData.map(q=>`
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px 16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:24px">${q.flag}</span>
+          <div><div style="font-size:13px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--mono);font-size:15px;font-weight:600">${q.val}</div>
+          <div style="font-size:11px;font-weight:500;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chgStr}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Gráfico Dólar histórico
+  if (charts.dolar) charts.dolar.destroy();
+  const ctx = document.getElementById('chartDolar');
+  if (ctx) {
+    try {
+      const res = await fetch('https://economia.awesomeapi.com.br/json/daily/USD-BRL/30');
+      const data = await res.json();
+      const labels = data.reverse().map(d => {
+        const dt = new Date(d.timestamp * 1000);
+        return dt.getDate()+'/'+(dt.getMonth()+1);
+      });
+      const vals = data.map(d => parseFloat(d.bid));
+      charts.dolar = new Chart(ctx, {
+        type:'line',
+        data:{labels,datasets:[{label:'USD/BRL',data:vals,borderColor:'#1A6B50',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,backgroundColor:'rgba(26,107,80,0.06)'}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+Number(v).toFixed(4)}}}}
+      });
+    } catch(e) {
+      console.error('Erro gráfico dólar:', e);
+    }
+  }
 }
 
 // ============================================================
