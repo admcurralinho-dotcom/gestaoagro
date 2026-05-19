@@ -385,14 +385,46 @@ tr:hover td { background: var(--bg); }
 
     <!-- COTAÇÕES -->
     <div class="page" id="page-cotacoes">
+
+      <!-- Ticker tape TradingView -->
+      <div class="card" style="margin-bottom:14px;overflow:hidden">
+        <div class="card-header"><div class="card-title">Mercados ao vivo</div><div class="card-sub">via TradingView · tempo real</div></div>
+        <div id="tv-ticker"></div>
+      </div>
+
+      <div class="grid2" style="margin-bottom:14px">
+        <!-- Dólar e Euro -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">🇺🇸 Dólar · 🇪🇺 Euro</div><div class="card-sub">USD/BRL · EUR/BRL</div></div>
+          <div class="card-body" style="padding:0">
+            <div id="tv-dolar" style="height:300px"></div>
+          </div>
+        </div>
+        <!-- Cotações rápidas -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Resumo de mercado</div><div class="card-sub">principais ativos</div></div>
+          <div class="card-body" style="padding:0">
+            <div id="tv-market" style="height:300px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boi Gordo Futuros -->
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">Câmbio e índices</div><div class="card-sub" id="cot-hora2">Carregando...</div></div>
-        <div class="card-body"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px" id="cot-full"></div></div>
+        <div class="card-header"><div class="card-title">🐂 Boi Gordo — Contratos Futuros (BGI)</div><div class="card-sub">B3 · vencimentos mensais</div></div>
+        <div class="card-body" style="padding:0">
+          <div id="tv-boi" style="height:420px"></div>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-header"><div class="card-title">Histórico USD/BRL</div><div class="card-sub">últimos 30 dias (simulado)</div></div>
-        <div class="card-body"><div class="chart-container" style="height:220px"><canvas id="chartDolar"></canvas></div></div>
+
+      <!-- Soja Chicago -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">🌱 Soja — Contratos Futuros (ZS)</div><div class="card-sub">CBOT Chicago · vencimentos mensais</div></div>
+        <div class="card-body" style="padding:0">
+          <div id="tv-soja" style="height:420px"></div>
+        </div>
       </div>
+
     </div>
 
     <!-- EXTRATO -->
@@ -890,6 +922,160 @@ function renderMiniQuotes() {
 }
 
 async function renderCotacoes() {
+  // Inicializar widgets TradingView
+  setTimeout(() => {
+    // Ticker tape
+    const ticker = document.getElementById('tv-ticker');
+    if (ticker && !ticker.hasChildNodes()) {
+      const s1 = document.createElement('script');
+      s1.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js';
+      s1.async = true;
+      s1.innerHTML = JSON.stringify({
+        symbols: [
+          {proName:'BMFBOVESPA:BGI1!',title:'Boi Gordo Cont.'},
+          {proName:'BMFBOVESPA:BGI2!',title:'Boi Gordo 2'},
+          {proName:'BMFBOVESPA:BGI3!',title:'Boi Gordo 3'},
+          {proName:'CBOT:ZS1!',title:'Soja Chicago'},
+          {proName:'CBOT:ZS2!',title:'Soja 2'},
+          {proName:'FX:USDBRL',title:'Dólar'},
+          {proName:'FX:EURBRL',title:'Euro'},
+        ],
+        showSymbolLogo: true,
+        colorTheme: 'light',
+        isTransparent: true,
+        displayMode: 'adaptive',
+        locale: 'br'
+      });
+      ticker.appendChild(s1);
+    }
+
+    // Gráfico Dólar/Euro
+    const divDolar = document.getElementById('tv-dolar');
+    if (divDolar && !divDolar.hasChildNodes()) {
+      const container = document.createElement('div');
+      container.className = 'tradingview-widget-container';
+      container.style.height = '100%';
+      const widget = document.createElement('div');
+      widget.className = 'tradingview-widget-container__widget';
+      widget.style.height = '100%';
+      container.appendChild(widget);
+      const s = document.createElement('script');
+      s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+      s.async = true;
+      s.innerHTML = JSON.stringify({
+        autosize: true,
+        symbol: 'FX:USDBRL',
+        interval: 'D',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light',
+        style: '1',
+        locale: 'br',
+        hide_top_toolbar: false,
+        hide_legend: false,
+        save_image: false,
+        calendar: false,
+        compare_symbols: [{symbol:'FX:EURBRL',position:'SameScale'}],
+        backgroundColor: 'rgba(255,255,255,0)',
+      });
+      container.appendChild(s);
+      divDolar.appendChild(container);
+    }
+
+    // Market overview
+    const divMarket = document.getElementById('tv-market');
+    if (divMarket && !divMarket.hasChildNodes()) {
+      const s = document.createElement('script');
+      s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js';
+      s.async = true;
+      s.innerHTML = JSON.stringify({
+        colorTheme: 'light',
+        dateRange: '1D',
+        showChart: false,
+        locale: 'br',
+        largeChartUrl: '',
+        isTransparent: true,
+        showSymbolLogo: true,
+        showFloatingTooltip: false,
+        width: '100%',
+        height: '300',
+        tabs: [
+          {
+            title: 'Câmbio',
+            symbols: [
+              {s:'FX:USDBRL',d:'Dólar'},
+              {s:'FX:EURBRL',d:'Euro'},
+              {s:'FX:GBPBRL',d:'Libra'},
+            ]
+          },
+          {
+            title: 'Commodities',
+            symbols: [
+              {s:'BMFBOVESPA:BGI1!',d:'Boi Gordo'},
+              {s:'CBOT:ZS1!',d:'Soja Chicago'},
+              {s:'CBOT:ZC1!',d:'Milho Chicago'},
+              {s:'NYMEX:CL1!',d:'Petróleo WTI'},
+            ]
+          }
+        ]
+      });
+      divMarket.appendChild(s);
+    }
+
+    // Boi Gordo Futuros
+    const divBoi = document.getElementById('tv-boi');
+    if (divBoi && !divBoi.hasChildNodes()) {
+      const s = document.createElement('script');
+      s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+      s.async = true;
+      s.innerHTML = JSON.stringify({
+        autosize: true,
+        symbol: 'BMFBOVESPA:BGI1!',
+        interval: 'D',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light',
+        style: '1',
+        locale: 'br',
+        hide_top_toolbar: false,
+        save_image: false,
+        calendar: false,
+        backgroundColor: 'rgba(255,255,255,0)',
+        compare_symbols: [
+          {symbol:'BMFBOVESPA:BGI2!',position:'SameScale'},
+          {symbol:'BMFBOVESPA:BGI3!',position:'SameScale'},
+          {symbol:'BMFBOVESPA:BGI4!',position:'SameScale'},
+        ],
+      });
+      divBoi.appendChild(s);
+    }
+
+    // Soja Chicago Futuros
+    const divSoja = document.getElementById('tv-soja');
+    if (divSoja && !divSoja.hasChildNodes()) {
+      const s = document.createElement('script');
+      s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+      s.async = true;
+      s.innerHTML = JSON.stringify({
+        autosize: true,
+        symbol: 'CBOT:ZS1!',
+        interval: 'D',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light',
+        style: '1',
+        locale: 'br',
+        hide_top_toolbar: false,
+        save_image: false,
+        calendar: false,
+        backgroundColor: 'rgba(255,255,255,0)',
+        compare_symbols: [
+          {symbol:'CBOT:ZS2!',position:'SameScale'},
+          {symbol:'CBOT:ZS3!',position:'SameScale'},
+        ],
+      });
+      divSoja.appendChild(s);
+    }
+  }, 100);
+
+  // Mini cotações no dashboard continuam via API
   if (quotesData.length === 0) await carregarCotacoes();
 
   const full = document.getElementById('cot-full');
