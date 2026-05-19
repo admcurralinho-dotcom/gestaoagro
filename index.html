@@ -43,7 +43,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .sidebar {
   position: fixed; left: 0; top: 0; width: var(--sidebar); height: 100vh;
   background: var(--text); display: flex; flex-direction: column; z-index: 100;
-  overflow-y: auto;
+  overflow-y: auto; min-width: 180px;
+}
+.sidebar-collapsed { display: none; }
+.sidebar-toggle {
+  display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
+  background: var(--text); color: #fff; border: none; border-radius: 8px;
+  width: 36px; height: 36px; cursor: pointer; font-size: 18px;
+  align-items: center; justify-content: center;
 }
 .sidebar-logo {
   padding: 22px 20px 18px;
@@ -112,7 +119,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .sidebar-footer strong { color: rgba(255,255,255,0.6); display: block; margin-bottom: 1px; font-weight: 500; }
 
 /* MAIN */
-.main { margin-left: var(--sidebar); min-height: 100vh; }
+.main { margin-left: var(--sidebar); min-height: 100vh; transition: margin-left .2s; }
+@media (max-width: 900px) {
+  .sidebar { transform: translateX(-100%); transition: transform .2s; }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0 !important; }
+  .sidebar-toggle { display: flex !important; }
+  .topbar { padding-left: 60px; }
+}
 .topbar {
   position: sticky; top: 0; z-index: 50;
   background: rgba(245,243,238,0.88); backdrop-filter: blur(10px);
@@ -279,7 +293,10 @@ tr:hover td { background: var(--bg); }
 <body>
 
 <!-- SIDEBAR -->
-<div id="app" style="display:none;width:100%;"><aside class="sidebar">
+<div id="app" style="display:none;width:100%;">
+<button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+<div id="sidebar-overlay" onclick="closeSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99"></div>
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-wordmark">Gestão<span>Agro</span></div>
     <div class="logo-sub">Sistema de Gestão</div>
@@ -703,6 +720,20 @@ const PROXY = 'https://api.allorigins.win/raw?url=';
 const BASE_URL = 'https://www.correadacosta.com.br';
 let leilaoAtual = null;
 
+function decodeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec)))
+    .replace(/&nbsp;/g, ' ')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
 async function fetchPage(url) {
   try {
     const res = await fetch(PROXY + encodeURIComponent(url));
@@ -780,23 +811,23 @@ async function buscarDadosLeilao(url) {
 
   // Extrair título
   const titleM = html.match(new RegExp('<h1[^>]*>([\\s\\S]*?)<\\/h1>'));
-  const titulo = titleM ? titleM[1].replace(/<[^>]+>/g, '').trim() : '';
+  const titulo = titleM ? decodeHtml(titleM[1]) : '';
 
   // Extrair data
   const dataM = html.match(new RegExp('Data[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i')) || html.match(new RegExp('<strong>Data:<\/strong>\\s*([^<\n]+)', 'i'));
-  const dataStr = dataM ? dataM[1].trim() : '';
+  const dataStr = dataM ? decodeHtml(dataM[1]) : '';
 
   // Extrair tipo
   const tipoM = html.match(new RegExp('Tipo[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i'));
-  const tipo = tipoM ? tipoM[1].trim() : '';
+  const tipo = tipoM ? decodeHtml(tipoM[1]) : '';
 
   // Extrair condições de pagamento
   const condM = html.match(new RegExp('Condi[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i'));
-  const condicoes = condM ? condM[1].trim() : '';
+  const condicoes = condM ? decodeHtml(condM[1]) : '';
 
   // Extrair local
   const localM = html.match(new RegExp('Local[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i')) || html.match(new RegExp('<strong>Local[^<]*<\/strong>\\s*([^<\n]+)', 'i'));
-  const local = localM ? localM[1].replace(/<[^>]+>/g, '').trim() : '';
+  const local = localM ? decodeHtml(localM[1]) : '';
 
   // Extrair tabela de médias
   const medias = [];
@@ -851,15 +882,29 @@ async function buscarDadosLeilao(url) {
 async function salvarLeilaoSupabase(dados) {
   if (!dados || !dados.titulo) return null;
 
-  // Verificar se já existe
-  const dataISO = dados.dataStr.match(/(\d{4}-\d{2}-\d{2})/) 
-    ? dados.dataStr.match(/(\d{4}-\d{2}-\d{2})/)[1]
-    : null;
+  // Extrair data ISO da URL ou do campo dataStr
+  let dataISO = null;
+  if (dados.url) {
+    const m = dados.url.match(/(\d{4}-\d{2}-\d{2})/);
+    if (m) dataISO = m[1];
+  }
+  if (!dataISO && dados.dataStr) {
+    const m = dados.dataStr.match(/(\d{4}-\d{2}-\d{2})/);
+    if (m) dataISO = m[1];
+  }
+  // Tentar converter "18/05/2026" para ISO
+  if (!dataISO && dados.dataStr) {
+    const m = dados.dataStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m) dataISO = `${m[3]}-${m[2]}-${m[1]}`;
+  }
 
+  // Verificar se já existe
   if (dataISO) {
-    const { data: exist } = await sb.from('leiloes_correa_costa').select('id').eq('data_leilao', dataISO).single();
+    const { data: exist } = await sb.from('leiloes_correa_costa').select('id').eq('data_leilao', dataISO).maybeSingle();
     if (exist) {
-      toast('Leilão já salvo anteriormente', '');
+      toast('Leilão já salvo no histórico!', '');
+      await carregarHistorico();
+      await popularSelectHistorico();
       return exist.id;
     }
   }
@@ -875,15 +920,29 @@ async function salvarLeilaoSupabase(dados) {
     url: dados.url,
   }).select().single();
 
-  if (error || !leilao) { console.error('Erro salvar leilão:', error); return null; }
-
-  // Inserir médias
-  if (dados.medias.length > 0) {
-    const mediasInsert = dados.medias.map(m => ({ ...m, leilao_id: leilao.id }));
-    await sb.from('leiloes_medias').insert(mediasInsert);
+  if (error || !leilao) {
+    console.error('Erro salvar leilão:', error);
+    toast('Erro ao salvar no histórico: ' + (error?.message || ''), 'error');
+    return null;
   }
 
-  toast(`Leilão ${dados.numero} salvo com ${dados.medias.length} registros!`, 'success');
+  // Inserir médias
+  if (dados.medias && dados.medias.length > 0) {
+    const mediasInsert = dados.medias.map(m => ({
+      leilao_id: leilao.id,
+      classificacao: m.classificacao,
+      idade: m.idade,
+      peso_kg: m.peso_kg,
+      valor: m.valor,
+      rs_kg: m.rs_kg,
+    }));
+    const { error: errMed } = await sb.from('leiloes_medias').insert(mediasInsert);
+    if (errMed) console.error('Erro salvar médias:', errMed);
+  }
+
+  toast('Leilão ' + (dados.numero || '') + ' salvo com ' + (dados.medias?.length || 0) + ' categorias!', 'success');
+  await carregarHistorico();
+  await popularSelectHistorico();
   return leilao.id;
 }
 
@@ -1039,6 +1098,22 @@ async function renderLeilao() {
   } else {
     await buscarUltimoLeilao();
   }
+}
+
+// ============================================================
+// SIDEBAR TOGGLE (responsivo)
+// ============================================================
+function toggleSidebar() {
+  const s = document.getElementById('sidebar');
+  const o = document.getElementById('sidebar-overlay');
+  s.classList.toggle('open');
+  o.style.display = s.classList.contains('open') ? 'block' : 'none';
+}
+function closeSidebar() {
+  const s = document.getElementById('sidebar');
+  const o = document.getElementById('sidebar-overlay');
+  s.classList.remove('open');
+  o.style.display = 'none';
 }
 
 // ============================================================
