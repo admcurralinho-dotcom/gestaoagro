@@ -987,113 +987,24 @@ async function renderCotacoes() {
 // ============================================================
 // SIDEBAR
 // ============================================================
-function renderSidebar() {
-  // Group dropdown
-  const grp = grupos.find(g=>g.id===grupoAtivo);
-  document.getElementById('grp-name').textContent = grp?.nome || '--';
-  document.getElementById('grp-dd').innerHTML = grupos.map(g=>`
-    <div class="group-opt ${g.id===grupoAtivo?'active':''}" onclick="selectGrupo('${g.id}')">
-      <div class="g-dot" style="background:${g.id===grupoAtivo?'#4DD9A0':'rgba(255,255,255,0.3)'}"></div>
-      <div>
-        <div style="font-weight:500">${g.nome}</div>
-        <div style="font-size:10px;opacity:.5">${empresas.filter(e=>e.grupo_id===g.id).length} unidades</div>
-      </div>
-    </div>`).join('');
-  renderEmpList();
-}
-function renderEmpList() {
-  const emps = empresas.filter(e=>e.grupo_id===grupoAtivo);
-  document.getElementById('emp-list').innerHTML = emps.map(e=>`
-    <div class="emp-item ${empresaAtiva===e.id?'active':''}" onclick="selectEmpresa('${e.id}')">
-      <div class="emp-dot"></div>
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:11.5px">${e.nome.replace('- Matriz','').replace('Ltda','').trim()}</span>
-      ${e.is_matriz?'<span class="emp-mtz">MTZ</span>':''}
-    </div>`).join('');
-}
-function toggleGroupDD() { document.getElementById('grp-dd').classList.toggle('open'); }
-async function selectGrupo(id) {
-  grupoAtivo = id; empresaAtiva = null;
-  document.getElementById('grp-dd').classList.remove('open');
-  renderSidebar();
-  await renderPage(paginaAtiva);
-}
-async function selectEmpresa(id) {
-  empresaAtiva = empresaAtiva === id ? null : id;
-  renderEmpList();
-  await renderPage(paginaAtiva);
-}
+// COTAÇÕES — AwesomeAPI + Yahoo Finance
+// ============================================================
+let quotesData = [];
+
+
+
+
+// ============================================================
+// SIDEBAR
+// ============================================================
 
 // ============================================================
 // NAVEGAÇÃO
 // ============================================================
-const PAGE_TITLES = { dashboard:'Dashboard', cotacoes:'Cotações', extrato:'Extrato Bancário', pagar:'Contas a Pagar', receber:'Contas a Receber', conciliacao:'Conciliação Bancária', plano:'Plano de Contas', empresas:'Empresas' };
-async function navigate(page) {
-  paginaAtiva = page;
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+page).classList.add('active');
-  document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
-  // Topbar actions
-  const acts = {
-    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}],
-    pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
-    receber: [{label:'+ Nova conta a receber', cls:'btn-primary', fn:'openModal("modal-receber")'}],
-  };
-  const bar = document.getElementById('topbar-actions');
-  bar.innerHTML = (acts[page]||[]).map(a=>`<button class="btn ${a.cls}" onclick="${a.fn}">${a.label}</button>`).join('');
-  await renderPage(page);
-}
-async function renderPage(page) {
-  if (page==='dashboard')    await renderDashboard();
-  if (page==='cotacoes')     renderCotacoes();
-  if (page==='extrato')      await renderExtrato();
-  if (page==='pagar')        await renderPagar();
-  if (page==='receber')      await renderReceber();
-  if (page==='conciliacao')  await renderConciliacao();
-  if (page==='plano')        renderPlano();
-  if (page==='empresas')     renderEmpresas();
-}
 
 // ============================================================
 // DASHBOARD
 // ============================================================
-async function renderDashboard() {
-  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
-  const resExt = await sb.from('movimentacao_bancaria').select('*').in('empresa_id', empIds);
-  const resCp  = await sb.from('contas_pagar').select('*').in('empresa_id', empIds);
-  const resCr  = await sb.from('contas_receber').select('*').in('empresa_id', empIds);
-  const extrato = resExt.data||[], pagar = resCp.data||[], receber = resCr.data||[];
-  const totalRec = extrato.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
-  const totalDes = extrato.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
-  const totalPagar = pagar.filter(r=>r.status!=='pago'&&r.status!=='cancelado').reduce((s,r)=>s+Number(r.valor),0);
-  const totalReceber = receber.filter(r=>r.status!=='recebido').reduce((s,r)=>s+Number(r.valor),0);
-  const atrasados = pagar.filter(r=>r.status==='atrasado').length;
-
-  document.getElementById('dash-metrics').innerHTML = `
-    <div class="metric"><div class="metric-label">Receitas (extrato)</div><div class="metric-value">${fmt(totalRec)}</div><div class="metric-delta delta-up">↑ Créditos lançados</div></div>
-    <div class="metric"><div class="metric-label">Despesas (extrato)</div><div class="metric-value">${fmt(totalDes)}</div><div class="metric-delta delta-down">↓ Débitos lançados</div></div>
-    <div class="metric"><div class="metric-label">A pagar (em aberto)</div><div class="metric-value">${fmt(totalPagar)}</div><div class="metric-delta ${atrasados>0?'delta-down':'delta-warn'}">${atrasados>0?'⚠ '+atrasados+' em atraso':'Sem atrasos'}</div></div>
-    <div class="metric"><div class="metric-label">A receber</div><div class="metric-value">${fmt(totalReceber)}</div><div class="metric-delta delta-up">↑ Aguardando</div></div>
-  `;
-
-  // Vencimentos
-  const proximos = pagar.filter(r=>r.status!=='pago').sort((a,b)=>a.vencimento?.localeCompare(b.vencimento)).slice(0,6);
-  document.getElementById('dash-venc').innerHTML = proximos.length
-    ? proximos.map(r=>`<tr><td>${r.fornecedor}</td><td style="color:var(--text2);font-size:12px">${empNome(r.empresa_id)}</td><td>${fmtDate(r.vencimento)}</td><td class="td-mono">${fmt(r.valor)}</td><td>${badgeStatus(r.status)}</td></tr>`).join('')
-    : `<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text3)">Nenhuma conta a pagar cadastrada</td></tr>`;
-
-  // Fluxo chart
-  const creditos = extrato.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
-  const debitos  = extrato.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
-  if (charts.fluxo) charts.fluxo.destroy();
-  const ctxF = document.getElementById('chartFluxo');
-  if (ctxF) charts.fluxo = new Chart(ctxF, {
-    type:'bar',
-    data:{ labels:['Receitas','Despesas','Saldo'], datasets:[{ data:[creditos, debitos, creditos-debitos], backgroundColor:['#1A6B50','#B83030', creditos-debitos>=0?'#2A9070':'#D05050'], borderRadius:6, barPercentage:0.5 }]},
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmt(c.parsed.y)}}}, scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}} } }
-  });
-}
 
 // ============================================================
 // COTAÇÕES
@@ -1142,37 +1053,6 @@ async function fetchQuote(symbol) {
   return null;
 }
 
-async function carregarCotacoes() {
-  const hora = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  ['cot-hora','cot-hora2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='Atualizado às '+hora+' (15min delay)'; });
-
-  // Buscar todas em paralelo
-  const results = await Promise.all(SYMBOLS.map(s => s.manual ? null : fetchQuote(s.symbol)));
-
-  quotesData = SYMBOLS.map((s, i) => {
-    if (s.manual) {
-      return {
-        ...s,
-        val: s.prefix + s.manualVal.toLocaleString('pt-BR', {minimumFractionDigits: s.decimals, maximumFractionDigits: s.decimals}),
-        chgStr: 'ESALQ ref.',
-        up: true,
-        raw: s.manualVal,
-      };
-    }
-    const r = results[i];
-    const price = r ? r.price : null;
-    const chg   = r ? r.chg   : 0;
-    return {
-      ...s,
-      val: price ? s.prefix + price.toLocaleString('pt-BR', {minimumFractionDigits: s.decimals, maximumFractionDigits: s.decimals}) : '--',
-      chgStr: (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%',
-      up: chg >= 0,
-      raw: price,
-    };
-  });
-
-  renderMiniQuotes();
-}
 
 function renderMiniQuotes() {
   const mini = document.getElementById('cot-mini');
@@ -1190,59 +1070,6 @@ function renderMiniQuotes() {
     </div>`).join('');
 }
 
-async function renderCotacoes() {
-  // Widgets TradingView removidos
-
-  // Mini cotações no dashboard continuam via API
-  if (quotesData.length === 0) await carregarCotacoes();
-
-  const full = document.getElementById('cot-full');
-  if (full) full.innerHTML = quotesData.map(q=>`
-    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px 16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:24px">${q.flag}</span>
-        <div><div style="font-size:13px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-family:var(--mono);font-size:15px;font-weight:600">${q.val}</div>
-        <div style="font-size:11px;font-weight:500;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chgStr}</div>
-      </div>
-    </div>`).join('');
-
-  // Gráfico Dólar
-  if (charts.dolar) charts.dolar.destroy();
-  const ctx = document.getElementById('chartDolar');
-  if (!ctx) return;
-
-  // Buscar histórico dólar 30 dias
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/USDBRL=X?interval=1d&range=1mo`;
-    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const res = await fetch(proxy);
-    const json = await res.json();
-    const result = json?.chart?.result?.[0];
-    const timestamps = result?.timestamp || [];
-    const closes = result?.indicators?.quote?.[0]?.close || [];
-    const labels = timestamps.map(t => {
-      const d = new Date(t * 1000);
-      return d.getDate() + '/' + (d.getMonth()+1);
-    });
-    charts.dolar = new Chart(ctx, {
-      type:'line',
-      data:{labels, datasets:[{label:'USD/BRL', data:closes, borderColor:'#1A6B50', borderWidth:1.5, pointRadius:0, tension:0.3, fill:true, backgroundColor:'rgba(26,107,80,0.06)'}]},
-      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+Number(v).toFixed(2)}}}}
-    });
-  } catch(e) {
-    // fallback simulado
-    const labels = Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.getDate()+'/'+(d.getMonth()+1);});
-    const vals = Array.from({length:30},(_,i)=>+(5.10+Math.sin(i*0.4)*0.12+Math.random()*0.04).toFixed(4));
-    charts.dolar = new Chart(ctx, {
-      type:'line',
-      data:{labels,datasets:[{label:'USD/BRL',data:vals,borderColor:'#1A6B50',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true,backgroundColor:'rgba(26,107,80,0.06)'}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+v.toFixed(2)}}}}
-    });
-  }
-}
 
 // ============================================================
 // TABS
