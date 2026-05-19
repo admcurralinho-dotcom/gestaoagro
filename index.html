@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GestãoAgro — Sistema de Gestão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg: #F5F3EE;
+  --surface: #FFFFFF;
+  --surface2: #F9F8F5;
+  --border: #E8E5DE;
+  --border2: #D5D0C5;
+  --text: #1C1A16;
+  --text2: #6B6758;
+  --text3: #A39F95;
+  --green: #1A6B50;
+  --green2: #2A9070;
+  --green-light: #EAF5F0;
+  --purple: #3D3580;
+  --purple-light: #EEEDF8;
+  --red: #B83030;
+  --red-light: #FAEAEA;
+  --amber: #A05800;
+  --amber-light: #FEF4E2;
+  --sidebar: 224px;
+  --font-display: 'Syne', sans-serif;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --radius: 12px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+/* SIDEBAR */
+.sidebar {
+  position: fixed; left: 0; top: 0; width: var(--sidebar); height: 100vh;
+  background: var(--text); display: flex; flex-direction: column; z-index: 100;
+  overflow-y: auto;
+}
+.sidebar-logo {
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.logo-wordmark { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.logo-wordmark span { color: #4DD9A0; }
+.logo-sub { font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+
+/* Group selector */
+.group-selector {
+  margin: 14px 12px 4px;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-sm); padding: 9px 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  transition: background .15s;
+}
+.group-selector:hover { background: rgba(255,255,255,0.11); }
+.group-name-disp { font-size: 12px; font-weight: 500; color: #fff; line-height: 1.3; }
+.group-tag-disp { font-size: 10px; color: rgba(255,255,255,0.4); }
+.group-dropdown {
+  margin: 0 12px 6px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-sm); overflow: hidden; display: none;
+}
+.group-dropdown.open { display: block; }
+.group-opt {
+  padding: 9px 12px; font-size: 12px; cursor: pointer; color: rgba(255,255,255,0.7);
+  display: flex; align-items: center; gap: 8px; transition: background .1s;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.group-opt:last-child { border-bottom: none; }
+.group-opt:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.group-opt.active { color: #4DD9A0; }
+.g-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* Empresa list */
+.emp-list { padding: 4px 10px 8px; }
+.emp-item {
+  padding: 5px 10px; border-radius: var(--radius-sm); font-size: 12px;
+  color: rgba(255,255,255,0.5); cursor: pointer; transition: all .1s;
+  display: flex; align-items: center; gap: 7px; margin: 1px 0;
+}
+.emp-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8); }
+.emp-item.active { background: rgba(77,217,160,0.15); color: #4DD9A0; }
+.emp-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.emp-mtz { font-size: 9px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); padding: 1px 5px; border-radius: 4px; margin-left: auto; letter-spacing: .04em; }
+
+/* NAV */
+.nav { padding: 8px 0; flex: 1; }
+.nav-section { padding: 14px 0 2px; }
+.nav-label { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.25); padding: 0 18px; margin-bottom: 3px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 18px;
+  font-size: 12.5px; color: rgba(255,255,255,0.5); cursor: pointer;
+  transition: all .12s; border-left: 2px solid transparent; font-weight: 400;
+}
+.nav-item:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.05); }
+.nav-item.active { color: #4DD9A0; border-left-color: #4DD9A0; background: rgba(77,217,160,0.08); font-weight: 500; }
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+.sidebar-footer {
+  padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 11px; color: rgba(255,255,255,0.3);
+}
+.sidebar-footer strong { color: rgba(255,255,255,0.6); display: block; margin-bottom: 1px; font-weight: 500; }
+
+/* MAIN */
+.main { margin-left: var(--sidebar); min-height: 100vh; }
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(245,243,238,0.88); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  padding: 13px 28px; display: flex; align-items: center; justify-content: space-between;
+}
+.page-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+
+.btn {
+  padding: 7px 15px; border-radius: var(--radius-sm); font-family: var(--font);
+  font-size: 12.5px; font-weight: 500; cursor: pointer; border: none; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: var(--text); color: #fff; }
+.btn-primary:hover { background: #333; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--surface); }
+.btn-sm { padding: 5px 11px; font-size: 11.5px; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { background: var(--green2); }
+
+/* CONTENT */
+.content { padding: 22px 28px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* METRICS */
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+.metric {
+  background: var(--surface); border-radius: var(--radius); padding: 16px 18px;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.metric-label { font-size: 10.5px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.metric-value { font-family: var(--font-display); font-size: 21px; font-weight: 600; color: var(--text); letter-spacing: -0.5px; }
+.metric-delta { font-size: 11px; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+.delta-up { color: var(--green); }
+.delta-down { color: var(--red); }
+.delta-warn { color: var(--amber); }
+
+/* GRIDS */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+/* CARD */
+.card {
+  background: var(--surface); border-radius: var(--radius);
+  border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden;
+}
+.card-header {
+  padding: 14px 18px 12px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.card-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; color: var(--text); }
+.card-sub { font-size: 11px; color: var(--text3); }
+.card-body { padding: 14px 18px; }
+
+/* TABLE */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-size: 10.5px; font-weight: 600; color: var(--text3); text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 10px 16px; text-align: left;
+  border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap;
+}
+td { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg); }
+.td-mono { font-family: var(--mono); font-size: 12px; }
+
+/* BADGES */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500;
+}
+.badge-green { background: var(--green-light); color: var(--green); }
+.badge-red { background: var(--red-light); color: var(--red); }
+.badge-amber { background: var(--amber-light); color: var(--amber); }
+.badge-purple { background: var(--purple-light); color: var(--purple); }
+.badge-gray { background: var(--bg); color: var(--text2); border: 1px solid var(--border); }
+
+/* EMPRESA TABS */
+.emp-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.emp-tab {
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text2); transition: all .12s;
+}
+.emp-tab:hover { border-color: var(--border2); color: var(--text); }
+.emp-tab.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+/* LOADING */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px; color: var(--text3); font-size: 13px; gap: 10px;
+}
+.spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--green); border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* EMPTY */
+.empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+.empty-icon { font-size: 28px; margin-bottom: 10px; }
+.empty p { font-size: 13px; }
+
+/* ALERT */
+.alert {
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-bottom: 16px;
+}
+.alert-warn { background: var(--amber-light); border: 1px solid #EFC97A; color: var(--amber); }
+.alert-success { background: var(--green-light); border: 1px solid #8FD4B8; color: var(--green); }
+.alert-error { background: var(--red-light); border: 1px solid #E8A0A0; color: var(--red); }
+
+/* MODAL */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(2px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 14px; padding: 24px;
+  width: 500px; max-width: 95vw; box-shadow: var(--shadow-md);
+  border: 1px solid var(--border); max-height: 90vh; overflow-y: auto;
+}
+.modal-title { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-bottom: 5px; display: block; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-family: var(--font); font-size: 13px;
+  background: var(--surface); color: var(--text); outline: none; transition: border-color .15s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--text); }
+.form-textarea { resize: vertical; min-height: 70px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* CHART */
+.chart-container { position: relative; height: 200px; }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 300;
+  background: var(--text); color: #fff; padding: 12px 18px; border-radius: var(--radius-sm);
+  font-size: 13px; box-shadow: var(--shadow-md); display: none;
+  align-items: center; gap: 8px; min-width: 220px;
+}
+.toast.show { display: flex; animation: slideup .25s ease; }
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+@keyframes slideup { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* CONCILIAÇÃO */
+.concil-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.concil-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* STATUS DOT */
+.status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-wordmark">Gestão<span>Agro</span></div>
+    <div class="logo-sub">Sistema de Gestão</div>
+  </div>
+
+  <div class="group-selector" onclick="toggleGroupDD()">
+    <div>
+      <div class="group-name-disp" id="grp-name">Carregando...</div>
+      <div class="group-tag-disp">Grupo ativo</div>
+    </div>
+    <svg viewBox="0 0 16 16" fill="none" style="width:12px;height:12px;color:rgba(255,255,255,0.4)"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="group-dropdown" id="grp-dd"></div>
+  <div class="emp-list" id="emp-list"></div>
+
+  <nav class="nav">
+    <div class="nav-section">
+      <div class="nav-label">Painel</div>
+      <div class="nav-item active" onclick="navigate('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" onclick="navigate('cotacoes')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 11l4-4 3 3 5-6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Cotações
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Financeiro</div>
+      <div class="nav-item" onclick="navigate('extrato')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Extrato bancário
+      </div>
+      <div class="nav-item" onclick="navigate('pagar')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Contas a pagar
+      </div>
+      <div class="nav-item" onclick="navigate('receber')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 13V3M4 7l4-4 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Contas a receber
+      </div>
+      <div class="nav-item" onclick="navigate('conciliacao')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h12M10 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Conciliação
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Cadastros</div>
+      <div class="nav-item" onclick="navigate('plano')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 7h8M2 11h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Plano de contas
+      </div>
+      <div class="nav-item" onclick="navigate('empresas')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
+        Empresas
+      </div>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <strong>Administrador</strong>
+    admin@sistema.com
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="page-title" id="page-title">Dashboard</div>
+    <div class="topbar-right" id="topbar-actions"></div>
+  </div>
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div id="dash-alert"></div>
+      <div class="metrics" id="dash-metrics">
+        <div class="metric"><div class="metric-label">Receitas</div><div class="loading"><div class="spinner"></div></div></div>
+        <div class="metric"><div class="metric-label">Despesas</div><div class="loading"><div class="spinner"></div></div></div>
+        <div class="metric"><div class="metric-label">A pagar</div><div class="loading"><div class="spinner"></div></div></div>
+        <div class="metric"><div class="metric-label">A receber</div><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Fluxo de caixa</div><div class="card-sub">movimentações do extrato</div></div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartFluxo"></canvas></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Cotações</div><div class="card-sub" id="cot-hora">ao vivo</div></div>
+          <div class="card-body" id="cot-mini"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Próximos vencimentos — Contas a pagar</div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody id="dash-venc"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- COTAÇÕES -->
+    <div class="page" id="page-cotacoes">
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">Câmbio e índices</div><div class="card-sub" id="cot-hora2">Carregando...</div></div>
+        <div class="card-body"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px" id="cot-full"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Histórico USD/BRL</div><div class="card-sub">últimos 30 dias (simulado)</div></div>
+        <div class="card-body"><div class="chart-container" style="height:220px"><canvas id="chartDolar"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- EXTRATO -->
+    <div class="page" id="page-extrato">
+      <div class="emp-tabs" id="tabs-extrato"></div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Movimentação bancária</div>
+          <select class="form-select" style="width:auto;font-size:12px" id="filtro-extrato" onchange="renderExtrato()">
+            <option value="">Todos</option><option value="credito">Créditos</option><option value="debito">Débitos</option>
+          </select>
+        </div>
+        <div class="table-wrap" id="extrato-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTAS A PAGAR -->
+    <div class="page" id="page-pagar">
+      <div class="emp-tabs" id="tabs-pagar"></div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Contas a pagar</div>
+          <select class="form-select" style="width:auto;font-size:12px" id="filtro-pagar" onchange="renderPagar()">
+            <option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="atrasado">Atrasado</option>
+          </select>
+        </div>
+        <div class="table-wrap" id="pagar-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTAS A RECEBER -->
+    <div class="page" id="page-receber">
+      <div class="emp-tabs" id="tabs-receber"></div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Contas a receber</div></div>
+        <div class="table-wrap" id="receber-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONCILIAÇÃO -->
+    <div class="page" id="page-conciliacao">
+      <div class="emp-tabs" id="tabs-concil"></div>
+      <div class="alert alert-warn">
+        <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;flex-shrink:0"><path d="M8 2L14 13H2L8 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 7v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor"/></svg>
+        Marque as movimentações já conferidas com o extrato bancário real.
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Lançamentos para conciliar</div><div class="card-sub" id="concil-resumo"></div></div>
+        <div class="table-wrap" id="concil-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLANO DE CONTAS -->
+    <div class="page" id="page-plano">
+      <div class="grid2">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--green)">Receitas</div>
+          <div class="card"><div class="table-wrap"><table><thead><tr><th>Código</th><th>Nome</th><th>Status</th></tr></thead><tbody id="plano-rec"></tbody></table></div></div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--red)">Despesas</div>
+          <div class="card"><div class="table-wrap"><table><thead><tr><th>Código</th><th>Nome</th><th>Status</th></tr></thead><tbody id="plano-des"></tbody></table></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EMPRESAS -->
+    <div class="page" id="page-empresas">
+      <div class="grid2" id="empresas-grid"></div>
+    </div>
+
+  </div>
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL: EXTRATO -->
+<div class="modal-overlay" id="modal-extrato">
+  <div class="modal">
+    <div class="modal-title">Novo lançamento — Extrato</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Data *</label><input type="date" class="form-input" id="e-data"></div>
+      <div class="form-group"><label class="form-label">Tipo *</label>
+        <select class="form-select" id="e-tipo"><option value="credito">Crédito (entrada)</option><option value="debito">Débito (saída)</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Empresa *</label><select class="form-select" id="e-empresa"></select></div>
+    <div class="form-group"><label class="form-label">Nome (cliente / fornecedor / serviço) *</label><input type="text" class="form-input" id="e-nome" placeholder="Ex: Frigorifico Araçatuba"></div>
+    <div class="form-group"><label class="form-label">Descrição</label><input type="text" class="form-input" id="e-desc" placeholder="Ex: Venda lote 48 novilhos"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Plano de contas</label><select class="form-select" id="e-plano"></select></div>
+      <div class="form-group"><label class="form-label">Valor (R$) *</label><input type="number" class="form-input" id="e-valor" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Banco</label><input type="text" class="form-input" id="e-banco" placeholder="Ex: Banco do Brasil"></div>
+    <div class="form-group"><label class="form-label">Nº Documento</label><input type="text" class="form-input" id="e-doc" placeholder="Ex: TED-001234"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarExtrato()">Salvar lançamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONTAS A PAGAR -->
+<div class="modal-overlay" id="modal-pagar">
+  <div class="modal">
+    <div class="modal-title">Nova conta a pagar</div>
+    <div class="form-group"><label class="form-label">Empresa *</label><select class="form-select" id="p-empresa"></select></div>
+    <div class="form-group"><label class="form-label">Fornecedor *</label><input type="text" class="form-input" id="p-forn" placeholder="Nome do fornecedor"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nº Documento / NF *</label><input type="text" class="form-input" id="p-doc" placeholder="NF-001234"></div>
+      <div class="form-group"><label class="form-label">Valor (R$) *</label><input type="number" class="form-input" id="p-valor" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Vencimento *</label><input type="date" class="form-input" id="p-venc"></div>
+      <div class="form-group"><label class="form-label">Plano de contas</label><select class="form-select" id="p-plano"></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Descrição</label><input type="text" class="form-input" id="p-desc" placeholder="Opcional"></div>
+    <div class="form-group"><label class="form-label">Observação</label><textarea class="form-textarea" id="p-obs" placeholder="Opcional"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarPagar()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONTAS A RECEBER -->
+<div class="modal-overlay" id="modal-receber">
+  <div class="modal">
+    <div class="modal-title">Nova conta a receber</div>
+    <div class="form-group"><label class="form-label">Empresa *</label><select class="form-select" id="r-empresa"></select></div>
+    <div class="form-group"><label class="form-label">Cliente *</label><input type="text" class="form-input" id="r-cliente" placeholder="Nome do cliente"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nº Documento / NF</label><input type="text" class="form-input" id="r-doc" placeholder="NF-001234"></div>
+      <div class="form-group"><label class="form-label">Valor (R$) *</label><input type="number" class="form-input" id="r-valor" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Vencimento *</label><input type="date" class="form-input" id="r-venc"></div>
+      <div class="form-group"><label class="form-label">Plano de contas</label><select class="form-select" id="r-plano"></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Descrição</label><input type="text" class="form-input" id="r-desc" placeholder="Opcional"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarReceber()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SUPABASE
+// ============================================================
+const { createClient } = supabase;
+const sb = createClient(
+  'https://lxcchvbtleaktgguozxf.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4Y2NodmJ0bGVha3RnZ3VvenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNDc3NDEsImV4cCI6MjA5NDcyMzc0MX0.UodPv9eVTB4jcGHe8Uufpe_jamAGafoORCiU1GyP4w0'
+);
+
+// ============================================================
+// ESTADO
+// ============================================================
+let grupos = [];
+let empresas = [];
+let planos = [];
+let grupoAtivo = null;
+let empresaAtiva = null;
+let paginaAtiva = 'dashboard';
+let charts = {};
+let extratoData = [];
+let pagarData = [];
+let receberData = [];
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, tipo = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (tipo ? ' ' + tipo : '');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// FORMATADORES
+// ============================================================
+function fmt(v) {
+  return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtDate(d) {
+  if (!d) return '--';
+  const [y,m,dd] = d.split('-');
+  return `${dd}/${m}/${y}`;
+}
+function badgeStatus(s) {
+  const map = { pendente:['badge-amber','Pendente'], pago:['badge-green','Pago'], atrasado:['badge-red','Atrasado'], recebido:['badge-green','Recebido'], cancelado:['badge-gray','Cancelado'] };
+  const [cls, label] = map[s] || ['badge-gray', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function empNome(id) {
+  const e = empresas.find(x=>x.id===id);
+  return e ? e.nome.replace('- Matriz','').replace('Ltda','').trim() : '--';
+}
+function planoNome(id) {
+  const p = planos.find(x=>x.id===id);
+  return p ? `${p.codigo} ${p.nome}` : '--';
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  await carregarGrupos();
+  await carregarEmpresas();
+  await carregarPlanos();
+  renderSidebar();
+  await renderPage('dashboard');
+  carregarCotacoes();
+}
+
+async function carregarGrupos() {
+  const { data, error } = await sb.from('grupos').select('*').order('nome');
+  if (error) { toast('Erro ao carregar grupos', 'error'); return; }
+  grupos = data;
+  grupoAtivo = grupos[0]?.id;
+}
+async function carregarEmpresas() {
+  const { data } = await sb.from('empresas').select('*').order('filial_codigo');
+  empresas = data || [];
+}
+async function carregarPlanos() {
+  const { data } = await sb.from('plano_contas').select('*').order('codigo');
+  planos = data || [];
+}
+
+// ============================================================
+// SIDEBAR
+// ============================================================
+function renderSidebar() {
+  // Group dropdown
+  const grp = grupos.find(g=>g.id===grupoAtivo);
+  document.getElementById('grp-name').textContent = grp?.nome || '--';
+  document.getElementById('grp-dd').innerHTML = grupos.map(g=>`
+    <div class="group-opt ${g.id===grupoAtivo?'active':''}" onclick="selectGrupo('${g.id}')">
+      <div class="g-dot" style="background:${g.id===grupoAtivo?'#4DD9A0':'rgba(255,255,255,0.3)'}"></div>
+      <div>
+        <div style="font-weight:500">${g.nome}</div>
+        <div style="font-size:10px;opacity:.5">${empresas.filter(e=>e.grupo_id===g.id).length} unidades</div>
+      </div>
+    </div>`).join('');
+  renderEmpList();
+}
+function renderEmpList() {
+  const emps = empresas.filter(e=>e.grupo_id===grupoAtivo);
+  document.getElementById('emp-list').innerHTML = emps.map(e=>`
+    <div class="emp-item ${empresaAtiva===e.id?'active':''}" onclick="selectEmpresa('${e.id}')">
+      <div class="emp-dot"></div>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:11.5px">${e.nome.replace('- Matriz','').replace('Ltda','').trim()}</span>
+      ${e.is_matriz?'<span class="emp-mtz">MTZ</span>':''}
+    </div>`).join('');
+}
+function toggleGroupDD() { document.getElementById('grp-dd').classList.toggle('open'); }
+async function selectGrupo(id) {
+  grupoAtivo = id; empresaAtiva = null;
+  document.getElementById('grp-dd').classList.remove('open');
+  renderSidebar();
+  await renderPage(paginaAtiva);
+}
+async function selectEmpresa(id) {
+  empresaAtiva = empresaAtiva === id ? null : id;
+  renderEmpList();
+  await renderPage(paginaAtiva);
+}
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+const PAGE_TITLES = { dashboard:'Dashboard', cotacoes:'Cotações', extrato:'Extrato Bancário', pagar:'Contas a Pagar', receber:'Contas a Receber', conciliacao:'Conciliação Bancária', plano:'Plano de Contas', empresas:'Empresas' };
+async function navigate(page) {
+  paginaAtiva = page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
+  // Topbar actions
+  const acts = {
+    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}],
+    pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
+    receber: [{label:'+ Nova conta a receber', cls:'btn-primary', fn:'openModal("modal-receber")'}],
+  };
+  const bar = document.getElementById('topbar-actions');
+  bar.innerHTML = (acts[page]||[]).map(a=>`<button class="btn ${a.cls}" onclick="${a.fn}">${a.label}</button>`).join('');
+  await renderPage(page);
+}
+async function renderPage(page) {
+  if (page==='dashboard')    await renderDashboard();
+  if (page==='cotacoes')     renderCotacoes();
+  if (page==='extrato')      await renderExtrato();
+  if (page==='pagar')        await renderPagar();
+  if (page==='receber')      await renderReceber();
+  if (page==='conciliacao')  await renderConciliacao();
+  if (page==='plano')        renderPlano();
+  if (page==='empresas')     renderEmpresas();
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function renderDashboard() {
+  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
+  const resExt = await sb.from('movimentacao_bancaria').select('*').in('empresa_id', empIds);
+  const resCp  = await sb.from('contas_pagar').select('*').in('empresa_id', empIds);
+  const resCr  = await sb.from('contas_receber').select('*').in('empresa_id', empIds);
+  const extrato = resExt.data||[], pagar = resCp.data||[], receber = resCr.data||[];
+  const totalRec = extrato.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
+  const totalDes = extrato.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
+  const totalPagar = pagar.filter(r=>r.status!=='pago'&&r.status!=='cancelado').reduce((s,r)=>s+Number(r.valor),0);
+  const totalReceber = receber.filter(r=>r.status!=='recebido').reduce((s,r)=>s+Number(r.valor),0);
+  const atrasados = pagar.filter(r=>r.status==='atrasado').length;
+
+  document.getElementById('dash-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Receitas (extrato)</div><div class="metric-value">${fmt(totalRec)}</div><div class="metric-delta delta-up">↑ Créditos lançados</div></div>
+    <div class="metric"><div class="metric-label">Despesas (extrato)</div><div class="metric-value">${fmt(totalDes)}</div><div class="metric-delta delta-down">↓ Débitos lançados</div></div>
+    <div class="metric"><div class="metric-label">A pagar (em aberto)</div><div class="metric-value">${fmt(totalPagar)}</div><div class="metric-delta ${atrasados>0?'delta-down':'delta-warn'}">${atrasados>0?'⚠ '+atrasados+' em atraso':'Sem atrasos'}</div></div>
+    <div class="metric"><div class="metric-label">A receber</div><div class="metric-value">${fmt(totalReceber)}</div><div class="metric-delta delta-up">↑ Aguardando</div></div>
+  `;
+
+  // Vencimentos
+  const proximos = pagar.filter(r=>r.status!=='pago').sort((a,b)=>a.vencimento?.localeCompare(b.vencimento)).slice(0,6);
+  document.getElementById('dash-venc').innerHTML = proximos.length
+    ? proximos.map(r=>`<tr><td>${r.fornecedor}</td><td style="color:var(--text2);font-size:12px">${empNome(r.empresa_id)}</td><td>${fmtDate(r.vencimento)}</td><td class="td-mono">${fmt(r.valor)}</td><td>${badgeStatus(r.status)}</td></tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text3)">Nenhuma conta a pagar cadastrada</td></tr>`;
+
+  // Fluxo chart
+  const creditos = extrato.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
+  const debitos  = extrato.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
+  if (charts.fluxo) charts.fluxo.destroy();
+  const ctxF = document.getElementById('chartFluxo');
+  if (ctxF) charts.fluxo = new Chart(ctxF, {
+    type:'bar',
+    data:{ labels:['Receitas','Despesas','Saldo'], datasets:[{ data:[creditos, debitos, creditos-debitos], backgroundColor:['#1A6B50','#B83030', creditos-debitos>=0?'#2A9070':'#D05050'], borderRadius:6, barPercentage:0.5 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmt(c.parsed.y)}}}, scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}} } }
+  });
+}
+
+// ============================================================
+// COTAÇÕES
+// ============================================================
+const QUOTES = [
+  { flag:'🇺🇸', name:'Dólar', code:'USD/BRL', val:'5,18', chg:'-0,42%', up:false },
+  { flag:'🇪🇺', name:'Euro',  code:'EUR/BRL', val:'5,64', chg:'+0,18%', up:true },
+  { flag:'🇬🇧', name:'Libra', code:'GBP/BRL', val:'6,72', chg:'+0,09%', up:true },
+  { flag:'🇦🇷', name:'Peso',  code:'ARS/BRL', val:'0,0054',chg:'-1,20%',up:false},
+  { flag:'🪙',  name:'Bitcoin',code:'BTC/BRL', val:'R$542k',chg:'+2,31%',up:true},
+  { flag:'📊',  name:'IPCA',  code:'Acum.12m', val:'4,62%', chg:'-0,05pp',up:false},
+];
+function carregarCotacoes() {
+  const hora = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const mini = document.getElementById('cot-mini');
+  if (mini) mini.innerHTML = QUOTES.slice(0,3).map(q=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">${q.flag}</span><div><div style="font-size:12px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div></div>
+      <div style="text-align:right"><div style="font-family:var(--mono);font-size:14px;font-weight:600">${q.val}</div><div style="font-size:11px;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chg}</div></div>
+    </div>`).join('');
+  ['cot-hora','cot-hora2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='Atualizado às '+hora; });
+}
+function renderCotacoes() {
+  carregarCotacoes();
+  const full = document.getElementById('cot-full');
+  if (full) full.innerHTML = QUOTES.map(q=>`
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">${q.flag}</span><div><div style="font-size:12px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div></div>
+      <div style="text-align:right"><div style="font-family:var(--mono);font-size:15px;font-weight:600">${q.val}</div><div style="font-size:11px;font-weight:500;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chg}</div></div>
+    </div>`).join('');
+  if (charts.dolar) charts.dolar.destroy();
+  const ctx = document.getElementById('chartDolar');
+  if (!ctx) return;
+  const labels = Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.getDate()+'/'+(d.getMonth()+1);});
+  const vals = Array.from({length:30},(_,i)=>+(4.95+Math.sin(i*0.4)*0.18+Math.random()*0.06).toFixed(4));
+  charts.dolar = new Chart(ctx, {
+    type:'line',
+    data:{labels,datasets:[{label:'USD/BRL',data:vals,borderColor:'#1A6B50',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true,backgroundColor:'rgba(26,107,80,0.06)'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+v.toFixed(2)}}}}
+  });
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function renderTabs(containerId, onClickFn) {
+  const emps = empresas.filter(e=>e.grupo_id===grupoAtivo);
+  document.getElementById(containerId).innerHTML =
+    `<div class="emp-tab ${!empresaAtiva?'active':''}" onclick="${onClickFn}(null)">Todas</div>` +
+    emps.map(e=>`<div class="emp-tab ${empresaAtiva===e.id?'active':''}" onclick="${onClickFn}('${e.id}')">${e.nome.split('-')[0].trim().replace('Fazenda ','')}</div>`).join('');
+}
+function selectTabEmpresa(id) { empresaAtiva = id; renderEmpList(); renderPage(paginaAtiva); }
+
+// ============================================================
+// EXTRATO
+// ============================================================
+async function renderExtrato() {
+  renderTabs('tabs-extrato','selectTabEmpresa');
+  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
+  let q = sb.from('movimentacao_bancaria').select('*').in('empresa_id',empIds).order('data',{ascending:false});
+  const filtro = document.getElementById('filtro-extrato')?.value;
+  if (filtro) q = q.eq('tipo', filtro);
+  const { data, error } = await q;
+  extratoData = data || [];
+  const wrap = document.getElementById('extrato-wrap');
+  if (error) { wrap.innerHTML = '<div class="empty"><p>Erro ao carregar dados</p></div>'; return; }
+  if (!extratoData.length) { wrap.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>Nenhum lançamento encontrado.<br>Clique em "+ Novo lançamento" para começar.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Data</th><th>Tipo</th><th>Empresa</th><th>Nome/Parte</th><th>Descrição</th><th>Plano de contas</th><th>Banco</th><th>Valor</th></tr></thead><tbody>${
+    extratoData.map(r=>`<tr>
+      <td>${fmtDate(r.data)}</td>
+      <td><span class="badge ${r.tipo==='credito'?'badge-green':'badge-red'}">${r.tipo==='credito'?'Crédito':'Débito'}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${empNome(r.empresa_id)}</td>
+      <td style="font-weight:500">${r.nome_parte||'--'}</td>
+      <td style="color:var(--text2)">${r.descricao||'--'}</td>
+      <td style="font-size:11px;color:var(--text3)">${planoNome(r.plano_contas_id)}</td>
+      <td style="font-size:11px;color:var(--text3)">${r.banco||'--'}</td>
+      <td class="td-mono" style="color:${r.tipo==='credito'?'var(--green)':'var(--red)'};font-weight:600">${r.tipo==='credito'?'+':'-'}${fmt(r.valor)}</td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+// ============================================================
+// CONTAS A PAGAR
+// ============================================================
+async function renderPagar() {
+  renderTabs('tabs-pagar','selectTabEmpresa');
+  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
+  let q = sb.from('contas_pagar').select('*').in('empresa_id',empIds).order('vencimento');
+  const filtro = document.getElementById('filtro-pagar')?.value;
+  if (filtro) q = q.eq('status', filtro);
+  const { data } = await q;
+  pagarData = data || [];
+  const wrap = document.getElementById('pagar-wrap');
+  if (!pagarData.length) { wrap.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Nenhuma conta a pagar encontrada.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Documento</th><th>Plano de contas</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${
+    pagarData.map((r,i)=>`<tr>
+      <td style="font-weight:500">${r.fornecedor}</td>
+      <td style="font-size:11px;color:var(--text2)">${empNome(r.empresa_id)}</td>
+      <td class="td-mono">${r.numero_doc||'--'}</td>
+      <td style="font-size:11px;color:var(--text3)">${planoNome(r.plano_contas_id)}</td>
+      <td>${fmtDate(r.vencimento)}</td>
+      <td class="td-mono">${fmt(r.valor)}</td>
+      <td>${badgeStatus(r.status)}</td>
+      <td>${r.status!=='pago'?`<button class="btn btn-ghost btn-sm" onclick="marcarPago('${r.id}')">✓ Pagar</button>`:''}</td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+async function marcarPago(id) {
+  const { error } = await sb.from('contas_pagar').update({status:'pago', pago_em: new Date().toISOString().slice(0,10)}).eq('id',id);
+  if (error) { toast('Erro ao atualizar', 'error'); return; }
+  toast('Conta marcada como paga!', 'success');
+  await renderPagar();
+}
+
+// ============================================================
+// CONTAS A RECEBER
+// ============================================================
+async function renderReceber() {
+  renderTabs('tabs-receber','selectTabEmpresa');
+  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
+  // Tabela contas_receber pode não existir ainda — tratamos o erro
+  try {
+    const { data, error } = await sb.from('contas_receber').select('*').in('empresa_id',empIds).order('vencimento');
+    receberData = data || [];
+    const wrap = document.getElementById('receber-wrap');
+    if (error || !receberData.length) {
+      wrap.innerHTML = '<div class="empty"><div class="empty-icon">📥</div><p>Nenhuma conta a receber cadastrada.<br>Clique em "+ Nova conta a receber" para começar.</p></div>';
+      return;
+    }
+    wrap.innerHTML = `<table><thead><tr><th>Cliente</th><th>Empresa</th><th>Nº Documento</th><th>Plano de contas</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>${
+      receberData.map(r=>`<tr>
+        <td style="font-weight:500">${r.cliente||r.nome_parte||'--'}</td>
+        <td style="font-size:11px;color:var(--text2)">${empNome(r.empresa_id)}</td>
+        <td class="td-mono">${r.numero_doc||'--'}</td>
+        <td style="font-size:11px;color:var(--text3)">${planoNome(r.plano_contas_id)}</td>
+        <td>${fmtDate(r.vencimento)}</td>
+        <td class="td-mono">${fmt(r.valor)}</td>
+        <td>${badgeStatus(r.status||'pendente')}</td>
+      </tr>`).join('')
+    }</tbody></table>`;
+  } catch(e) {
+    document.getElementById('receber-wrap').innerHTML = '<div class="empty"><div class="empty-icon">📥</div><p>Tabela de contas a receber ainda não criada no banco.</p></div>';
+  }
+}
+
+// ============================================================
+// CONCILIAÇÃO
+// ============================================================
+async function renderConciliacao() {
+  renderTabs('tabs-concil','selectTabEmpresa');
+  const empIds = empresas.filter(e=>e.grupo_id===grupoAtivo && (!empresaAtiva||e.id===empresaAtiva)).map(e=>e.id);
+  const { data } = await sb.from('movimentacao_bancaria').select('*').in('empresa_id',empIds).order('data',{ascending:false});
+  const todos = data || [];
+  const naoConciliados = todos.filter(r=>!r.conciliado).length;
+  document.getElementById('concil-resumo').textContent = `${naoConciliados} pendentes · ${todos.filter(r=>r.conciliado).length} conciliados`;
+  const wrap = document.getElementById('concil-wrap');
+  if (!todos.length) { wrap.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>Nenhum lançamento para conciliar.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th></th><th>Data</th><th>Tipo</th><th>Empresa</th><th>Nome/Parte</th><th>Valor</th><th>Status</th></tr></thead><tbody>${
+    todos.map(r=>`<tr>
+      <td><input type="checkbox" ${r.conciliado?'checked':''} onchange="toggleConciliado('${r.id}', this.checked)" style="cursor:pointer;accent-color:var(--green)"></td>
+      <td>${fmtDate(r.data)}</td>
+      <td><span class="badge ${r.tipo==='credito'?'badge-green':'badge-red'}">${r.tipo==='credito'?'Crédito':'Débito'}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${empNome(r.empresa_id)}</td>
+      <td>${r.nome_parte||'--'}</td>
+      <td class="td-mono" style="font-weight:600;color:${r.tipo==='credito'?'var(--green)':'var(--red)'}">${r.tipo==='credito'?'+':'-'}${fmt(r.valor)}</td>
+      <td>${r.conciliado ? '<span class="badge badge-green">Conciliado</span>' : '<span class="badge badge-amber">Pendente</span>'}</td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+async function toggleConciliado(id, val) {
+  const { error } = await sb.from('movimentacao_bancaria').update({conciliado: val}).eq('id',id);
+  if (error) { toast('Erro ao atualizar', 'error'); return; }
+  toast(val ? 'Marcado como conciliado' : 'Marcação removida', 'success');
+  await renderConciliacao();
+}
+
+// ============================================================
+// PLANO DE CONTAS
+// ============================================================
+function renderPlano() {
+  const p = planos.filter(x=>x.grupo_id===grupoAtivo);
+  ['receita','despesa'].forEach(tipo=>{
+    const id = tipo==='receita'?'plano-rec':'plano-des';
+    document.getElementById(id).innerHTML = p.filter(x=>x.tipo===tipo).map(x=>`<tr><td class="td-mono">${x.codigo}</td><td>${x.nome}</td><td><span class="badge badge-green">Ativo</span></td></tr>`).join('') || `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text3)">Nenhum item</td></tr>`;
+  });
+}
+
+// ============================================================
+// EMPRESAS
+// ============================================================
+function renderEmpresas() {
+  const grid = document.getElementById('empresas-grid');
+  grid.innerHTML = grupos.map(g=>{
+    const emps = empresas.filter(e=>e.grupo_id===g.id);
+    const cor = g.slug==='figueiredo'?'var(--green)':'var(--purple)';
+    return `<div>
+      <div style="font-size:11px;font-weight:600;color:${cor};text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid ${cor}">${g.nome}</div>
+      <div class="card"><div class="table-wrap"><table><thead><tr><th>Filial</th><th>Nome</th><th>Tipo</th></tr></thead><tbody>${
+        emps.map(e=>`<tr><td class="td-mono">${e.filial_codigo}</td><td>${e.nome}</td><td>${e.is_matriz?'<span class="badge badge-purple">Matriz</span>':'<span class="badge badge-gray">Filial</span>'}</td></tr>`).join('')
+      }</tbody></table></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// MODAIS
+// ============================================================
+function openModal(id) {
+  const emps = empresas.filter(e=>e.grupo_id===grupoAtivo);
+  const planosDespesa = planos.filter(p=>p.grupo_id===grupoAtivo&&p.tipo==='despesa');
+  const planosReceita = planos.filter(p=>p.grupo_id===grupoAtivo&&p.tipo==='receita');
+  const todosPlanos = planos.filter(p=>p.grupo_id===grupoAtivo);
+  const empOpts = emps.map(e=>`<option value="${e.id}">${e.nome}</option>`).join('');
+  if (id==='modal-extrato') {
+    document.getElementById('e-empresa').innerHTML = empOpts;
+    document.getElementById('e-plano').innerHTML = todosPlanos.map(p=>`<option value="${p.id}">${p.codigo} — ${p.nome}</option>`).join('');
+    document.getElementById('e-data').value = new Date().toISOString().slice(0,10);
+  }
+  if (id==='modal-pagar') {
+    document.getElementById('p-empresa').innerHTML = empOpts;
+    document.getElementById('p-plano').innerHTML = planosDespesa.map(p=>`<option value="${p.id}">${p.codigo} — ${p.nome}</option>`).join('');
+    document.getElementById('p-venc').value = new Date().toISOString().slice(0,10);
+  }
+  if (id==='modal-receber') {
+    document.getElementById('r-empresa').innerHTML = empOpts;
+    document.getElementById('r-plano').innerHTML = planosReceita.map(p=>`<option value="${p.id}">${p.codigo} — ${p.nome}</option>`).join('');
+    document.getElementById('r-venc').value = new Date().toISOString().slice(0,10);
+  }
+  document.getElementById(id).classList.add('open');
+}
+function closeModals() { document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open')); }
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModals();}));
+
+async function salvarExtrato() {
+  const tipo = document.getElementById('e-tipo').value;
+  const obj = {
+    empresa_id: document.getElementById('e-empresa').value,
+    data: document.getElementById('e-data').value,
+    tipo,
+    natureza: tipo==='credito'?'receita':'despesa',
+    nome_parte: document.getElementById('e-nome').value,
+    descricao: document.getElementById('e-desc').value,
+    plano_contas_id: document.getElementById('e-plano').value || null,
+    valor: parseFloat(document.getElementById('e-valor').value) || 0,
+    banco: document.getElementById('e-banco').value,
+    numero_doc: document.getElementById('e-doc').value,
+    conciliado: false,
+  };
+  if (!obj.nome_parte || !obj.valor || !obj.data) { toast('Preencha os campos obrigatórios', 'error'); return; }
+  const { error } = await sb.from('movimentacao_bancaria').insert(obj);
+  if (error) { toast('Erro ao salvar: '+error.message, 'error'); return; }
+  toast('Lançamento salvo!', 'success');
+  closeModals();
+  await renderExtrato();
+}
+
+async function salvarPagar() {
+  const obj = {
+    empresa_id: document.getElementById('p-empresa').value,
+    fornecedor: document.getElementById('p-forn').value,
+    numero_doc: document.getElementById('p-doc').value,
+    valor: parseFloat(document.getElementById('p-valor').value) || 0,
+    vencimento: document.getElementById('p-venc').value,
+    plano_contas_id: document.getElementById('p-plano').value || null,
+    descricao: document.getElementById('p-desc').value,
+    observacao: document.getElementById('p-obs').value,
+    status: 'pendente',
+  };
+  if (!obj.fornecedor || !obj.valor || !obj.vencimento) { toast('Preencha os campos obrigatórios', 'error'); return; }
+  const { error } = await sb.from('contas_pagar').insert(obj);
+  if (error) { toast('Erro ao salvar: '+error.message, 'error'); return; }
+  toast('Conta a pagar salva!', 'success');
+  closeModals();
+  await renderPagar();
+}
+
+async function salvarReceber() {
+  // Tenta salvar em contas_receber — se tabela não existir, orienta criar
+  const obj = {
+    empresa_id: document.getElementById('r-empresa').value,
+    cliente: document.getElementById('r-cliente').value,
+    numero_doc: document.getElementById('r-doc').value,
+    valor: parseFloat(document.getElementById('r-valor').value) || 0,
+    vencimento: document.getElementById('r-venc').value,
+    plano_contas_id: document.getElementById('r-plano').value || null,
+    descricao: document.getElementById('r-desc').value,
+    status: 'pendente',
+  };
+  if (!obj.cliente || !obj.valor || !obj.vencimento) { toast('Preencha os campos obrigatórios', 'error'); return; }
+  const { error } = await sb.from('contas_receber').insert(obj);
+  if (error) { toast('Crie a tabela contas_receber no Supabase primeiro', 'error'); return; }
+  toast('Conta a receber salva!', 'success');
+  closeModals();
+  await renderReceber();
+}
+
+// ============================================================
+// START
+// ============================================================
+init();
+</script>
+</body>
+</html>
