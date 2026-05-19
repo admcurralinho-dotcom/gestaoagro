@@ -797,42 +797,126 @@ async function renderDashboard() {
 // ============================================================
 // COTAÇÕES
 // ============================================================
-const QUOTES = [
-  { flag:'🇺🇸', name:'Dólar', code:'USD/BRL', val:'5,18', chg:'-0,42%', up:false },
-  { flag:'🇪🇺', name:'Euro',  code:'EUR/BRL', val:'5,64', chg:'+0,18%', up:true },
-  { flag:'🇬🇧', name:'Libra', code:'GBP/BRL', val:'6,72', chg:'+0,09%', up:true },
-  { flag:'🇦🇷', name:'Peso',  code:'ARS/BRL', val:'0,0054',chg:'-1,20%',up:false},
-  { flag:'🪙',  name:'Bitcoin',code:'BTC/BRL', val:'R$542k',chg:'+2,31%',up:true},
-  { flag:'📊',  name:'IPCA',  code:'Acum.12m', val:'4,62%', chg:'-0,05pp',up:false},
+// ============================================================
+// COTAÇÕES — Yahoo Finance via proxy
+// ============================================================
+const SYMBOLS = [
+  { symbol:'USDBRL=X',  flag:'🇺🇸', name:'Dólar',       code:'USD/BRL',      prefix:'R$ ', decimals:4 },
+  { symbol:'EURBRL=X',  flag:'🇪🇺', name:'Euro',        code:'EUR/BRL',      prefix:'R$ ', decimals:4 },
+  { symbol:'BGI=F',     flag:'🐂', name:'Boi Gordo',    code:'BGI Futuro',   prefix:'R$ ', decimals:2 },
+  { symbol:'ZS=F',      flag:'🌱', name:'Soja Chicago', code:'CBOT (¢/bu)',  prefix:'',    decimals:2 },
 ];
-function carregarCotacoes() {
-  const hora = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  const mini = document.getElementById('cot-mini');
-  if (mini) mini.innerHTML = QUOTES.slice(0,3).map(q=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">${q.flag}</span><div><div style="font-size:12px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div></div>
-      <div style="text-align:right"><div style="font-family:var(--mono);font-size:14px;font-weight:600">${q.val}</div><div style="font-size:11px;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chg}</div></div>
-    </div>`).join('');
-  ['cot-hora','cot-hora2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='Atualizado às '+hora; });
+
+// Contratos futuros BGI por vencimento
+const BGI_MESES = ['BGIF25','BGIG25','BGIH25','BGIJ25','BGIK25'];
+
+let quotesData = [];
+
+async function fetchQuote(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    const res = await fetch(proxy);
+    const json = await res.json();
+    const meta = json?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = meta.regularMarketPrice;
+    const prev  = meta.chartPreviousClose || meta.previousClose;
+    const chg   = prev ? ((price - prev) / prev * 100) : 0;
+    return { price, chg, symbol };
+  } catch(e) {
+    return null;
+  }
 }
-function renderCotacoes() {
-  carregarCotacoes();
-  const full = document.getElementById('cot-full');
-  if (full) full.innerHTML = QUOTES.map(q=>`
-    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">${q.flag}</span><div><div style="font-size:12px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div></div>
-      <div style="text-align:right"><div style="font-family:var(--mono);font-size:15px;font-weight:600">${q.val}</div><div style="font-size:11px;font-weight:500;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chg}</div></div>
+
+async function carregarCotacoes() {
+  const hora = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  ['cot-hora','cot-hora2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='Atualizado às '+hora+' (15min delay)'; });
+
+  // Buscar todas em paralelo
+  const results = await Promise.all(SYMBOLS.map(s => fetchQuote(s.symbol)));
+
+  quotesData = SYMBOLS.map((s, i) => {
+    const r = results[i];
+    const price = r ? r.price : null;
+    const chg   = r ? r.chg   : 0;
+    return {
+      ...s,
+      val: price ? s.prefix + price.toLocaleString('pt-BR', {minimumFractionDigits: s.decimals, maximumFractionDigits: s.decimals}) : '--',
+      chgStr: (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%',
+      up: chg >= 0,
+      raw: price,
+    };
+  });
+
+  renderMiniQuotes();
+}
+
+function renderMiniQuotes() {
+  const mini = document.getElementById('cot-mini');
+  if (!mini) return;
+  mini.innerHTML = quotesData.slice(0, 4).map(q=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">${q.flag}</span>
+        <div><div style="font-size:12px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:13px;font-weight:600">${q.val}</div>
+        <div style="font-size:11px;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chgStr}</div>
+      </div>
     </div>`).join('');
+}
+
+async function renderCotacoes() {
+  if (quotesData.length === 0) await carregarCotacoes();
+
+  const full = document.getElementById('cot-full');
+  if (full) full.innerHTML = quotesData.map(q=>`
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px 16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">${q.flag}</span>
+        <div><div style="font-size:13px;font-weight:600">${q.name}</div><div style="font-size:10px;color:var(--text3)">${q.code}</div></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:15px;font-weight:600">${q.val}</div>
+        <div style="font-size:11px;font-weight:500;color:${q.up?'var(--green)':'var(--red)'}">${q.up?'▲':'▼'} ${q.chgStr}</div>
+      </div>
+    </div>`).join('');
+
+  // Gráfico Dólar
   if (charts.dolar) charts.dolar.destroy();
   const ctx = document.getElementById('chartDolar');
   if (!ctx) return;
-  const labels = Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.getDate()+'/'+(d.getMonth()+1);});
-  const vals = Array.from({length:30},(_,i)=>+(4.95+Math.sin(i*0.4)*0.18+Math.random()*0.06).toFixed(4));
-  charts.dolar = new Chart(ctx, {
-    type:'line',
-    data:{labels,datasets:[{label:'USD/BRL',data:vals,borderColor:'#1A6B50',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true,backgroundColor:'rgba(26,107,80,0.06)'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+v.toFixed(2)}}}}
-  });
+
+  // Buscar histórico dólar 30 dias
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/USDBRL=X?interval=1d&range=1mo`;
+    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    const res = await fetch(proxy);
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const closes = result?.indicators?.quote?.[0]?.close || [];
+    const labels = timestamps.map(t => {
+      const d = new Date(t * 1000);
+      return d.getDate() + '/' + (d.getMonth()+1);
+    });
+    charts.dolar = new Chart(ctx, {
+      type:'line',
+      data:{labels, datasets:[{label:'USD/BRL', data:closes, borderColor:'#1A6B50', borderWidth:1.5, pointRadius:0, tension:0.3, fill:true, backgroundColor:'rgba(26,107,80,0.06)'}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+Number(v).toFixed(2)}}}}
+    });
+  } catch(e) {
+    // fallback simulado
+    const labels = Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.getDate()+'/'+(d.getMonth()+1);});
+    const vals = Array.from({length:30},(_,i)=>+(5.10+Math.sin(i*0.4)*0.12+Math.random()*0.04).toFixed(4));
+    charts.dolar = new Chart(ctx, {
+      type:'line',
+      data:{labels,datasets:[{label:'USD/BRL',data:vals,borderColor:'#1A6B50',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true,backgroundColor:'rgba(26,107,80,0.06)'}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>'R$'+v.toFixed(2)}}}}
+    });
+  }
 }
 
 // ============================================================
