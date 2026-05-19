@@ -306,6 +306,10 @@ tr:hover td { background: var(--bg); }
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 11l4-4 3 3 5-6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Cotações
       </div>
+      <div class="nav-item" onclick="navigate('leilao')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 13l4-4 4 4 4-8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Leilão Correa da Costa
+      </div>
     </div>
     <div class="nav-section">
       <div class="nav-label">Financeiro</div>
@@ -431,7 +435,55 @@ tr:hover td { background: var(--bg); }
       </div>
     </div>
 
-        <!-- EXTRATO -->
+        <!-- LEILÃO CORREA DA COSTA -->
+    <div class="page" id="page-leilao">
+
+      <div class="alert alert-warn" id="leilao-alert" style="display:none"></div>
+
+      <!-- Header do leilão -->
+      <div class="card" style="margin-bottom:14px" id="leilao-header-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title" id="leilao-titulo">Carregando...</div>
+            <div class="card-sub" id="leilao-subtitulo"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="form-select" style="width:auto;font-size:12px" id="leilao-select" onchange="carregarLeilaoSelecionado()">
+              <option value="">Último leilão de segunda</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="buscarUltimoLeilao()">↻ Atualizar</button>
+          </div>
+        </div>
+        <div class="card-body" id="leilao-info" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="loading" style="grid-column:span 3"><div class="spinner"></div> Buscando leilão...</div>
+        </div>
+      </div>
+
+      <!-- Tabela de médias -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header">
+          <div class="card-title">📊 Tabela de Médias — Machos</div>
+          <div class="card-sub" id="leilao-medias-sub"></div>
+        </div>
+        <div class="table-wrap" id="leilao-medias-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando médias...</div>
+        </div>
+      </div>
+
+      <!-- Histórico -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📅 Histórico de leilões salvos</div>
+          <div class="card-sub" id="historico-sub"></div>
+        </div>
+        <div class="table-wrap" id="historico-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando histórico...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- EXTRATO -->
     <div class="page" id="page-extrato">
       <div class="emp-tabs" id="tabs-extrato"></div>
       <div class="card">
@@ -645,6 +697,351 @@ function planoNome(id) {
 }
 
 // ============================================================
+// LEILÃO CORREA DA COSTA
+// ============================================================
+const PROXY = 'https://api.allorigins.win/raw?url=';
+const BASE_URL = 'https://www.correadacosta.com.br';
+let leilaoAtual = null;
+
+async function fetchPage(url) {
+  try {
+    const res = await fetch(PROXY + encodeURIComponent(url));
+    const html = await res.text();
+    return html;
+  } catch(e) {
+    console.error('Erro fetch:', e);
+    return null;
+  }
+}
+
+function parseDate(str) {
+  // Formato: "segunda, 18/maio/2026" ou data na URL "2026-05-18"
+  if (!str) return null;
+  const meses = {janeiro:1,fevereiro:2,março:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+  const m = str.match(/(\d+)\/(\w+)\/(\d{4})/);
+  if (m) {
+    const mes = meses[m[2].toLowerCase()];
+    return new Date(parseInt(m[3]), mes-1, parseInt(m[1]));
+  }
+  // Formato ISO
+  const iso = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2])-1, parseInt(iso[3]));
+  return null;
+}
+
+function isSegunda(dateStr) {
+  const d = parseDate(dateStr);
+  return d && d.getDay() === 1; // 1 = segunda-feira
+}
+
+async function buscarListaLeiloes() {
+  const html = await fetchPage(BASE_URL + '/resultados');
+  if (!html) return [];
+
+  // Extrair links de leilões
+  const leiloes = [];
+  const regex = new RegExp('href="(\\/leiloes\\/[^"]+)"[^>]*>[\\s\\S]*?([\\d]+\u00ba LEIL\u00c3O[^<]*MACHOS[^<]*CORREA DA COSTA)[\\s\\S]*?(\\w+, \\d+\\/\\w+\\/\\d{4})', 'gi');
+  let m;
+  while ((m = regex.exec(html)) !== null) {
+    const url = m[1];
+    const titulo = m[2].trim();
+    const dataStr = m[3].trim();
+    if (isSegunda(dataStr)) {
+      leiloes.push({ url: BASE_URL + url, titulo, dataStr });
+    }
+  }
+
+  // Fallback: pegar todos os leilões de segunda com MACHOS no título
+  if (leiloes.length === 0) {
+    const linkRegex = new RegExp('href="(\\/leiloes\\/[^"]+leilao-machos-correa-da-costa[^"]+)"', 'gi');
+    let lm;
+    while ((lm = linkRegex.exec(html)) !== null) {
+      const url = lm[1];
+      // Extrair data da URL
+      const dateM = url.match(/(\d{4}-\d{2}-\d{2})$/);
+      if (dateM) {
+        const d = parseDate(dateM[1]);
+        if (d && d.getDay() === 1) {
+          leiloes.push({ url: BASE_URL + url, titulo: 'Leilão Machos Correa da Costa', dataStr: dateM[1] });
+        }
+      }
+    }
+  }
+  return leiloes;
+}
+
+async function buscarDadosLeilao(url) {
+  const html = await fetchPage(url);
+  if (!html) return null;
+
+  // Extrair número do leilão
+  const numM = html.match(new RegExp('(\\d+)\u00ba LEIL\u00c3O'));
+  const numero = numM ? parseInt(numM[1]) : null;
+
+  // Extrair título
+  const titleM = html.match(new RegExp('<h1[^>]*>([\\s\\S]*?)<\\/h1>'));
+  const titulo = titleM ? titleM[1].replace(/<[^>]+>/g, '').trim() : '';
+
+  // Extrair data
+  const dataM = html.match(new RegExp('Data[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i')) || html.match(new RegExp('<strong>Data:<\/strong>\\s*([^<\n]+)', 'i'));
+  const dataStr = dataM ? dataM[1].trim() : '';
+
+  // Extrair tipo
+  const tipoM = html.match(new RegExp('Tipo[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i'));
+  const tipo = tipoM ? tipoM[1].trim() : '';
+
+  // Extrair condições de pagamento
+  const condM = html.match(new RegExp('Condi[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i'));
+  const condicoes = condM ? condM[1].trim() : '';
+
+  // Extrair local
+  const localM = html.match(new RegExp('Local[^:]*:\\s*<\/strong>\\s*([^<\n]+)', 'i')) || html.match(new RegExp('<strong>Local[^<]*<\/strong>\\s*([^<\n]+)', 'i'));
+  const local = localM ? localM[1].replace(/<[^>]+>/g, '').trim() : '';
+
+  // Extrair tabela de médias
+  const medias = [];
+  // Procurar por linhas da tabela: Classificação | Idade | Peso | Valor | R$/Kg
+  const tabelaM = html.match(new RegExp('M\u00e9dias[\\s\\S]*?(<table[\\s\\S]*?<\\/table>)', 'i'));
+  if (tabelaM) {
+    const tabela = tabelaM[1];
+    const linhaRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let lm;
+    let firstRow = true;
+    while ((lm = linhaRegex.exec(tabela)) !== null) {
+      if (firstRow) { firstRow = false; continue; } // pular header
+      const colunas = [];
+      const tdRegex = new RegExp('<td[^>]*>([\\s\\S]*?)<\\/td>', 'gi');
+      let tm;
+      while ((tm = tdRegex.exec(lm[1])) !== null) {
+        colunas.push(tm[1].replace(/<[^>]+>/g, '').trim());
+      }
+      if (colunas.length >= 5) {
+        medias.push({
+          classificacao: colunas[0],
+          idade: colunas[1],
+          peso_kg: parseInt(colunas[2].replace(/[^\d]/g, '')) || 0,
+          valor: parseFloat(colunas[3].replace(/\./g, '').replace(',', '.')) || 0,
+          rs_kg: parseFloat(colunas[4].replace(',', '.')) || 0,
+        });
+      }
+    }
+  }
+
+  // Fallback: regex direto no HTML para encontrar as linhas da tabela
+  if (medias.length === 0) {
+    const rowRegex = new RegExp('<tr>\\s*<td>([^<]+)<\\/td>\\s*<td>([^<]+)<\\/td>\\s*<td>([^<]+)<\\/td>\\s*<td>([^<]+)<\\/td>\\s*<td>([^<]+)<\\/td>', 'gi');
+    let rm;
+    while ((rm = rowRegex.exec(html)) !== null) {
+      const peso = parseInt(rm[3].replace(/[^\d]/g, '')) || 0;
+      if (peso > 0 && peso < 2000) { // filtro para garantir que é linha de animal
+        medias.push({
+          classificacao: rm[1].trim(),
+          idade: rm[2].trim(),
+          peso_kg: peso,
+          valor: parseFloat(rm[4].replace(/\./g, '').replace(',', '.')) || 0,
+          rs_kg: parseFloat(rm[5].replace(',', '.')) || 0,
+        });
+      }
+    }
+  }
+
+  return { numero, titulo, dataStr, tipo, condicoes, local, url, medias };
+}
+
+async function salvarLeilaoSupabase(dados) {
+  if (!dados || !dados.titulo) return null;
+
+  // Verificar se já existe
+  const dataISO = dados.dataStr.match(/(\d{4}-\d{2}-\d{2})/) 
+    ? dados.dataStr.match(/(\d{4}-\d{2}-\d{2})/)[1]
+    : null;
+
+  if (dataISO) {
+    const { data: exist } = await sb.from('leiloes_correa_costa').select('id').eq('data_leilao', dataISO).single();
+    if (exist) {
+      toast('Leilão já salvo anteriormente', '');
+      return exist.id;
+    }
+  }
+
+  // Inserir leilão
+  const { data: leilao, error } = await sb.from('leiloes_correa_costa').insert({
+    numero: dados.numero,
+    titulo: dados.titulo,
+    data_leilao: dataISO,
+    tipo: dados.tipo,
+    condicoes_pagamento: dados.condicoes,
+    local: dados.local,
+    url: dados.url,
+  }).select().single();
+
+  if (error || !leilao) { console.error('Erro salvar leilão:', error); return null; }
+
+  // Inserir médias
+  if (dados.medias.length > 0) {
+    const mediasInsert = dados.medias.map(m => ({ ...m, leilao_id: leilao.id }));
+    await sb.from('leiloes_medias').insert(mediasInsert);
+  }
+
+  toast(`Leilão ${dados.numero} salvo com ${dados.medias.length} registros!`, 'success');
+  return leilao.id;
+}
+
+async function buscarUltimoLeilao() {
+  document.getElementById('leilao-info').innerHTML = '<div class="loading" style="grid-column:span 3"><div class="spinner"></div> Buscando leilão mais recente...</div>';
+  document.getElementById('leilao-medias-wrap').innerHTML = '<div class="loading"><div class="spinner"></div> Aguardando...</div>';
+
+  const leiloes = await buscarListaLeiloes();
+
+  if (leiloes.length === 0) {
+    // Tentar URL direta do leilão mais recente que vimos
+    const urlDireta = 'https://www.correadacosta.com.br/leiloes/4795-leilao-machos-correa-da-costa-2026-05-18';
+    const dados = await buscarDadosLeilao(urlDireta);
+    if (dados) {
+      leilaoAtual = dados;
+      await salvarLeilaoSupabase(dados);
+      renderLeilaoInfo(dados);
+      renderMedias(dados.medias);
+      await carregarHistorico();
+      return;
+    }
+    document.getElementById('leilao-info').innerHTML = '<div style="color:var(--text3);padding:16px;grid-column:span 3">Não foi possível acessar o site. Verifique sua conexão.</div>';
+    return;
+  }
+
+  // Pegar o mais recente
+  const ultimo = leiloes[0];
+  const dados = await buscarDadosLeilao(ultimo.url);
+  if (!dados) return;
+
+  leilaoAtual = dados;
+  await salvarLeilaoSupabase(dados);
+  renderLeilaoInfo(dados);
+  renderMedias(dados.medias);
+  await carregarHistorico();
+  await popularSelectHistorico();
+}
+
+function renderLeilaoInfo(dados) {
+  document.getElementById('leilao-titulo').textContent = dados.titulo || 'Leilão Machos Correa da Costa';
+  document.getElementById('leilao-subtitulo').textContent = dados.dataStr ? 'Data: ' + dados.dataStr : '';
+
+  document.getElementById('leilao-info').innerHTML = `
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Data</div>
+      <div style="font-size:14px;font-weight:600">${dados.dataStr || '--'}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Tipo</div>
+      <div style="font-size:14px;font-weight:600">${dados.tipo || '--'}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Condições de Pagamento</div>
+      <div style="font-size:14px;font-weight:600">${dados.condicoes || '--'}</div>
+    </div>
+    ${dados.local ? `<div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border);grid-column:span 3">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Local</div>
+      <div style="font-size:13px">${dados.local}</div>
+    </div>` : ''}
+  `;
+}
+
+function renderMedias(medias) {
+  document.getElementById('leilao-medias-sub').textContent = medias.length + ' categorias';
+  if (!medias.length) {
+    document.getElementById('leilao-medias-wrap').innerHTML = '<div class="empty"><p>Nenhuma média encontrada para este leilão.</p></div>';
+    return;
+  }
+  document.getElementById('leilao-medias-wrap').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Classificação</th>
+          <th>Idade</th>
+          <th>Peso</th>
+          <th>Valor</th>
+          <th>R$/Kg</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${medias.map(m => `<tr>
+          <td style="font-weight:500">${m.classificacao}</td>
+          <td>${m.idade}</td>
+          <td class="td-mono">${m.peso_kg} kg</td>
+          <td class="td-mono">R$ ${m.valor.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+          <td class="td-mono" style="font-weight:600;color:var(--green)">R$ ${m.rs_kg.toFixed(2).replace('.',',')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function carregarHistorico() {
+  const { data } = await sb.from('leiloes_correa_costa')
+    .select('*, leiloes_medias(count)')
+    .order('data_leilao', { ascending: false })
+    .limit(20);
+
+  const wrap = document.getElementById('historico-wrap');
+  if (!data || !data.length) {
+    wrap.innerHTML = '<div class="empty"><p>Nenhum leilão salvo ainda.</p></div>';
+    document.getElementById('historico-sub').textContent = '0 leilões';
+    return;
+  }
+
+  document.getElementById('historico-sub').textContent = data.length + ' leilões salvos';
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Nº</th><th>Título</th><th>Data</th><th>Tipo</th><th>Condições</th><th>Registros</th><th></th></tr></thead>
+    <tbody>
+      ${data.map(l => `<tr>
+        <td class="td-mono">${l.numero || '--'}</td>
+        <td style="font-weight:500">${l.titulo || '--'}</td>
+        <td>${l.data_leilao ? l.data_leilao.split('-').reverse().join('/') : '--'}</td>
+        <td>${l.tipo || '--'}</td>
+        <td>${l.condicoes_pagamento || '--'}</td>
+        <td><span class="badge badge-green">${l.leiloes_medias?.[0]?.count || 0} cat.</span></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="verLeilaoHistorico('${l.id}')">Ver médias</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function popularSelectHistorico() {
+  const { data } = await sb.from('leiloes_correa_costa').select('id, titulo, data_leilao, numero').order('data_leilao', { ascending: false }).limit(20);
+  if (!data) return;
+  const sel = document.getElementById('leilao-select');
+  sel.innerHTML = '<option value="">Último leilão de segunda</option>' +
+    data.map(l => `<option value="${l.id}">${l.numero}º - ${l.data_leilao ? l.data_leilao.split('-').reverse().join('/') : ''}</option>`).join('');
+}
+
+async function verLeilaoHistorico(id) {
+  const { data: leilao } = await sb.from('leiloes_correa_costa').select('*').eq('id', id).single();
+  const { data: medias } = await sb.from('leiloes_medias').select('*').eq('leilao_id', id).order('peso_kg');
+  if (leilao) renderLeilaoInfo(leilao);
+  if (medias) renderMedias(medias);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function carregarLeilaoSelecionado() {
+  const id = document.getElementById('leilao-select').value;
+  if (!id) { await buscarUltimoLeilao(); return; }
+  await verLeilaoHistorico(id);
+}
+
+async function renderLeilao() {
+  await carregarHistorico();
+  await popularSelectHistorico();
+  // Verificar se já tem leilão carregado
+  const { data } = await sb.from('leiloes_correa_costa').select('*').order('data_leilao', { ascending: false }).limit(1);
+  if (data && data.length > 0) {
+    const { data: medias } = await sb.from('leiloes_medias').select('*').eq('leilao_id', data[0].id).order('peso_kg');
+    renderLeilaoInfo(data[0]);
+    renderMedias(medias || []);
+  } else {
+    await buscarUltimoLeilao();
+  }
+}
+
+// ============================================================
 // LOGIN / AUTH
 // ============================================================
 function mostrarLogin() {
@@ -761,7 +1158,7 @@ async function selectEmpresa(id) {
 // ============================================================
 // NAVEGAÇÃO
 // ============================================================
-const PAGE_TITLES = { dashboard:'Dashboard', cotacoes:'Cotações', extrato:'Extrato Bancário', pagar:'Contas a Pagar', receber:'Contas a Receber', conciliacao:'Conciliação Bancária', plano:'Plano de Contas', empresas:'Empresas' };
+const PAGE_TITLES = { dashboard:'Dashboard', cotacoes:'Cotações', leilao:'Leilão Correa da Costa', extrato:'Extrato Bancário', pagar:'Contas a Pagar', receber:'Contas a Receber', conciliacao:'Conciliação Bancária', plano:'Plano de Contas', empresas:'Empresas' };
 async function navigate(page) {
   paginaAtiva = page;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -782,6 +1179,7 @@ async function navigate(page) {
 async function renderPage(page) {
   if (page==='dashboard')    await renderDashboard();
   if (page==='cotacoes')     renderCotacoes();
+  if (page==='leilao')       await renderLeilao();
   if (page==='extrato')      await renderExtrato();
   if (page==='pagar')        await renderPagar();
   if (page==='receber')      await renderReceber();
