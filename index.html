@@ -1309,11 +1309,26 @@ function renderFileList() {
     </div>`).join('');
 }
 
+function limparCnpj(cnpj) {
+  return cnpj ? cnpj.replace(/[^\d]/g, '') : '';
+}
+
+function detectarEmpresaPorCnpj(nota, operacao) {
+  // Para nota recebida → destinatário é a nossa empresa
+  // Para nota emitida → emitente é a nossa empresa
+  const cnpjBusca = operacao === 'recebida'
+    ? limparCnpj(nota.cnpj_destinatario)
+    : limparCnpj(nota.cnpj_emitente);
+
+  if (!cnpjBusca) return null;
+  const emp = empresas.find(e => limparCnpj(e.cnpj) === cnpjBusca);
+  return emp ? emp.id : null;
+}
+
 async function processarXmls() {
   if (!xmlFilesQueue.length) return;
-  const empresaId = document.getElementById('nfe-empresa').value;
+  const empresaIdFallback = document.getElementById('nfe-empresa').value;
   const operacao = document.getElementById('nfe-operacao').value;
-  if (!empresaId) { toast('Selecione a empresa', 'error'); return; }
 
   const btn = document.getElementById('nfe-upload-btn');
   btn.disabled = true;
@@ -1331,7 +1346,9 @@ async function processarXmls() {
     try {
       const xmlStr = await file.text();
       const nota = parseXmlNFe(xmlStr);
-      nota.empresa_id = empresaId;
+      // Detectar empresa automaticamente pelo CNPJ
+      const empresaDetectada = detectarEmpresaPorCnpj(nota, operacao);
+      nota.empresa_id = empresaDetectada || empresaIdFallback;
       nota.operacao = operacao;
 
       // Verificar duplicata
@@ -1366,7 +1383,7 @@ async function processarXmls() {
   btn.disabled = false;
   btn.textContent = 'Importar notas';
 
-  toast(`${ok} nota(s) importada(s)!${dup > 0 ? ' ' + dup + ' duplicada(s) ignorada(s).' : ''}`, 'success');
+  toast(`${ok} nota(s) importada(s) · CNPJ detectado automaticamente!${dup > 0 ? ' ' + dup + ' duplicada(s) ignorada(s).' : ''}`, 'success');
   await renderNFe();
 }
 
