@@ -1692,8 +1692,18 @@ function toggleGroupDD() {
   }
 }
 async function selectGrupo(id) {
-  grupoAtivo = id; empresaAtiva = null;
-  document.getElementById('grp-dd').classList.remove('open');
+  grupoAtivo = id; 
+  empresaAtiva = null;
+  // Fechar dropdown
+  const dd = document.getElementById('grp-dd-topbar');
+  if (dd) dd.style.display = 'none';
+  // Atualizar topbar nome e cor
+  const grp = grupos.find(g=>g.id===id);
+  const nomeEl = document.getElementById('topbar-grupo-nome');
+  const dotEl  = document.getElementById('topbar-grupo-dot');
+  if (nomeEl) nomeEl.textContent = grp?.nome || '--';
+  if (dotEl)  dotEl.style.background = grp?.slug === 'figueiredo' ? 'var(--wine)' : 'var(--green)';
+  // Atualizar sidebar e página
   renderSidebar();
   await renderPage(paginaAtiva);
 }
