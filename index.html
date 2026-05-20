@@ -1512,8 +1512,9 @@ async function verNota(id) {
 
 // ---- Abrir modal NF-e ----
 function openModalNFe() {
-  const g = grupo();
-  document.getElementById('nfe-empresa').innerHTML = g.empresas.map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
+  const g = grupos.find(x => x.id === grupoAtivo);
+  const emps = empresas.filter(e => e.grupo_id === grupoAtivo);
+  document.getElementById('nfe-empresa').innerHTML = emps.map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
   xmlFilesQueue = [];
   renderFileList();
   document.getElementById('nfe-upload-btn').style.display = 'none';
