@@ -350,6 +350,10 @@ tr:hover td { background: var(--bg); }
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h12M10 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Conciliação
       </div>
+      <div class="nav-item" onclick="navigate('nfe')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9H3V2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 2v3h3M6 7h4M6 10h4M6 13h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Notas Fiscais
+      </div>
     </div>
     <div class="nav-section">
       <div class="nav-label">Cadastros</div>
@@ -562,6 +566,47 @@ tr:hover td { background: var(--bg); }
       </div>
     </div>
 
+    <!-- NOTAS FISCAIS -->
+    <div class="page" id="page-nfe">
+
+      <!-- Filtros -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        <div class="emp-tabs" id="tabs-nfe" style="margin-bottom:0;flex:1"></div>
+        <select class="form-select" style="width:auto;font-size:12px" id="filtro-nfe-tipo" onchange="renderNFe()">
+          <option value="">Todos os tipos</option>
+          <option value="nfe">NF-e</option>
+          <option value="nfse">NFS-e</option>
+          <option value="cte">CT-e</option>
+          <option value="nfce">NFC-e</option>
+        </select>
+        <select class="form-select" style="width:auto;font-size:12px" id="filtro-nfe-op" onchange="renderNFe()">
+          <option value="">Emitidas e Recebidas</option>
+          <option value="emitida">Emitidas</option>
+          <option value="recebida">Recebidas</option>
+        </select>
+      </div>
+
+      <!-- Resumo -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px" id="nfe-resumo">
+        <div class="metric"><div class="metric-label">Total NF-e</div><div class="metric-value" id="nfe-count">--</div></div>
+        <div class="metric"><div class="metric-label">Valor emitido</div><div class="metric-value" id="nfe-emitido">--</div></div>
+        <div class="metric"><div class="metric-label">Valor recebido</div><div class="metric-value" id="nfe-recebido">--</div></div>
+        <div class="metric"><div class="metric-label">Última nota</div><div class="metric-value" id="nfe-ultima" style="font-size:14px">--</div></div>
+      </div>
+
+      <!-- Tabela -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Notas Fiscais</div>
+          <input type="text" class="form-input" id="nfe-search" placeholder="Buscar por nome, chave, número..." style="width:280px;font-size:12px" oninput="renderNFe()">
+        </div>
+        <div class="table-wrap" id="nfe-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando...</div>
+        </div>
+      </div>
+
+    </div>
+
     <!-- PLANO DE CONTAS -->
     <div class="page" id="page-plano">
       <div class="grid2">
@@ -583,6 +628,52 @@ tr:hover td { background: var(--bg); }
 
   </div>
 </main>
+
+<!-- MODAL: UPLOAD XML NF-e -->
+<div class="modal-overlay" id="modal-nfe">
+  <div class="modal" style="width:560px">
+    <div class="modal-title">Upload de XML — Nota Fiscal</div>
+    <div class="alert alert-warn" style="margin-bottom:16px">
+      <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;flex-shrink:0"><path d="M8 2L14 13H2L8 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 7v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor"/></svg>
+      Aceita NF-e, NFS-e, CT-e e NFC-e. Múltiplos arquivos de uma vez. Notas duplicadas são ignoradas automaticamente.
+    </div>
+    <div class="form-group">
+      <label class="form-label">Empresa *</label>
+      <select class="form-select" id="nfe-empresa"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Operação *</label>
+      <select class="form-select" id="nfe-operacao">
+        <option value="recebida">Recebida (entrada)</option>
+        <option value="emitida">Emitida (saída)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Arquivos XML</label>
+      <div id="nfe-dropzone" onclick="document.getElementById('nfe-file-input').click()"
+        style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:28px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg)"
+        ondragover="event.preventDefault();this.style.borderColor='var(--wine)'"
+        ondragleave="this.style.borderColor='var(--border2)'"
+        ondrop="handleXmlDrop(event)">
+        <div style="font-size:28px;margin-bottom:8px">📄</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">Arraste os XMLs aqui ou clique para selecionar</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Múltiplos arquivos .xml permitidos</div>
+      </div>
+      <input type="file" id="nfe-file-input" accept=".xml" multiple style="display:none" onchange="handleXmlFiles(this.files)">
+    </div>
+    <div id="nfe-file-list" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
+    <div id="nfe-progress" style="display:none;margin-top:12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px" id="nfe-progress-text">Processando...</div>
+      <div style="background:var(--border);border-radius:4px;height:6px">
+        <div id="nfe-progress-bar" style="background:var(--wine);height:6px;border-radius:4px;width:0%;transition:width .3s"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModals()">Fechar</button>
+      <button class="btn btn-primary" id="nfe-upload-btn" onclick="processarXmls()" style="display:none">Importar notas</button>
+    </div>
+  </div>
+</div>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
@@ -1105,6 +1196,333 @@ async function renderLeilao() {
 }
 
 // ============================================================
+// MÓDULO NOTAS FISCAIS
+// ============================================================
+
+let xmlFilesQueue = [];
+
+// ---- Parsing XML ----
+function parseXmlNFe(xmlStr) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlStr, 'text/xml');
+  const get = (tag, el) => (el || doc).querySelector(tag)?.textContent?.trim() || '';
+  const getAttr = (tag, attr) => doc.querySelector(tag)?.getAttribute(attr) || '';
+
+  // Detectar tipo
+  let tipo = 'nfe';
+  if (doc.querySelector('CTe') || doc.querySelector('cteProc')) tipo = 'cte';
+  else if (doc.querySelector('NFCe') || getAttr('infNFe', 'Id')?.includes('NFCe')) tipo = 'nfce';
+  else if (doc.querySelector('CompNfse') || doc.querySelector('InfNfse')) tipo = 'nfse';
+
+  // Chave de acesso
+  let chave = '';
+  if (tipo === 'nfe' || tipo === 'nfce') {
+    chave = getAttr('infNFe', 'Id')?.replace('NFe', '') || get('chNFe');
+  } else if (tipo === 'cte') {
+    chave = getAttr('infCte', 'Id')?.replace('CTe', '') || get('chCTe');
+  } else if (tipo === 'nfse') {
+    chave = get('CodigoVerificacao') || get('Numero') + get('CpfCnpj');
+  }
+
+  // Dados principais
+  const ide = doc.querySelector('ide');
+  const emit = doc.querySelector('emit');
+  const dest = doc.querySelector('dest') || doc.querySelector('tomador');
+  const total = doc.querySelector('total ICMSTot') || doc.querySelector('vNF') || doc.querySelector('Valores');
+
+  const nota = {
+    tipo,
+    chave_acesso: chave || null,
+    numero: get('nNF') || get('nCT') || get('Numero'),
+    serie: get('serie'),
+    data_emissao: parseDataNFe(get('dhEmi') || get('dEmi') || get('DataEmissao')),
+    data_entrada_saida: parseDataNFe(get('dhSaiEnt') || get('dSaiEnt')),
+    cnpj_emitente: get('emit CNPJ') || get('Prestador CpfCnpj Cnpj') || get('CNPJ', emit),
+    nome_emitente: get('emit xNome') || get('Prestador RazaoSocial') || get('xNome', emit),
+    cnpj_destinatario: get('dest CNPJ') || get('dest CPF') || get('Tomador CpfCnpj Cnpj'),
+    nome_destinatario: get('dest xNome') || get('Tomador RazaoSocial'),
+    valor_total: parseFloat(get('vNF') || get('vTPrest') || get('ValorLiquidoNfse') || '0') || 0,
+    valor_icms: parseFloat(get('vICMS') || '0') || 0,
+    valor_ipi: parseFloat(get('vIPI') || '0') || 0,
+    valor_pis: parseFloat(get('vPIS') || '0') || 0,
+    valor_cofins: parseFloat(get('vCOFINS') || '0') || 0,
+    natureza_operacao: get('natOp') || get('NaturezaOperacao') || '--',
+    status: 'ativa',
+    xml_raw: xmlStr,
+  };
+
+  // Itens
+  const itens = [];
+  doc.querySelectorAll('det').forEach((det, i) => {
+    itens.push({
+      numero_item: i + 1,
+      codigo_produto: get('cProd', det),
+      descricao: get('xProd', det),
+      ncm: get('NCM', det),
+      cfop: get('CFOP', det),
+      unidade: get('uCom', det) || get('uTrib', det),
+      quantidade: parseFloat(get('qCom', det) || get('qTrib', det) || '0') || 0,
+      valor_unitario: parseFloat(get('vUnCom', det) || get('vUnTrib', det) || '0') || 0,
+      valor_total: parseFloat(get('vProd', det) || '0') || 0,
+      valor_icms: parseFloat(get('vICMS', det) || '0') || 0,
+    });
+  });
+  nota.itens = itens;
+
+  return nota;
+}
+
+function parseDataNFe(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const m2 = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`;
+  return null;
+}
+
+// ---- Upload handlers ----
+function handleXmlDrop(event) {
+  event.preventDefault();
+  document.getElementById('nfe-dropzone').style.borderColor = 'var(--border2)';
+  handleXmlFiles(event.dataTransfer.files);
+}
+
+function handleXmlFiles(files) {
+  const novos = Array.from(files).filter(f => f.name.endsWith('.xml'));
+  novos.forEach(f => {
+    if (!xmlFilesQueue.find(x => x.name === f.name)) {
+      xmlFilesQueue.push(f);
+    }
+  });
+  renderFileList();
+  document.getElementById('nfe-upload-btn').style.display = xmlFilesQueue.length ? '' : 'none';
+}
+
+function renderFileList() {
+  const el = document.getElementById('nfe-file-list');
+  if (!xmlFilesQueue.length) { el.innerHTML = ''; return; }
+  el.innerHTML = xmlFilesQueue.map((f, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-radius:var(--radius-sm);padding:7px 10px;border:1px solid var(--border);font-size:12px">
+      <span>📄 ${f.name} <span style="color:var(--text3)">(${(f.size/1024).toFixed(1)}KB)</span></span>
+      <button onclick="xmlFilesQueue.splice(${i},1);renderFileList()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px">✕</button>
+    </div>`).join('');
+}
+
+async function processarXmls() {
+  if (!xmlFilesQueue.length) return;
+  const empresaId = document.getElementById('nfe-empresa').value;
+  const operacao = document.getElementById('nfe-operacao').value;
+  if (!empresaId) { toast('Selecione a empresa', 'error'); return; }
+
+  const btn = document.getElementById('nfe-upload-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando...';
+  document.getElementById('nfe-progress').style.display = 'block';
+
+  let ok = 0, dup = 0, erro = 0;
+
+  for (let i = 0; i < xmlFilesQueue.length; i++) {
+    const file = xmlFilesQueue[i];
+    const pct = Math.round((i / xmlFilesQueue.length) * 100);
+    document.getElementById('nfe-progress-bar').style.width = pct + '%';
+    document.getElementById('nfe-progress-text').textContent = `Processando ${i+1}/${xmlFilesQueue.length}: ${file.name}`;
+
+    try {
+      const xmlStr = await file.text();
+      const nota = parseXmlNFe(xmlStr);
+      nota.empresa_id = empresaId;
+      nota.operacao = operacao;
+
+      // Verificar duplicata
+      if (nota.chave_acesso) {
+        const { data: exist } = await sb.from('notas_fiscais').select('id').eq('chave_acesso', nota.chave_acesso).maybeSingle();
+        if (exist) { dup++; continue; }
+      }
+
+      // Salvar nota
+      const itens = nota.itens;
+      delete nota.itens;
+      const { data: saved, error } = await sb.from('notas_fiscais').insert(nota).select().single();
+      if (error) { console.error(error); erro++; continue; }
+
+      // Salvar itens
+      if (itens.length > 0 && saved) {
+        const itensInsert = itens.map(it => ({ ...it, nota_id: saved.id }));
+        await sb.from('nf_itens').insert(itensInsert);
+      }
+      ok++;
+    } catch(e) {
+      console.error('Erro processando XML:', e);
+      erro++;
+    }
+  }
+
+  document.getElementById('nfe-progress-bar').style.width = '100%';
+  document.getElementById('nfe-progress-text').textContent = `Concluído! ${ok} importadas · ${dup} duplicadas · ${erro} erros`;
+
+  xmlFilesQueue = [];
+  renderFileList();
+  btn.disabled = false;
+  btn.textContent = 'Importar notas';
+
+  toast(`${ok} nota(s) importada(s)!${dup > 0 ? ' ' + dup + ' duplicada(s) ignorada(s).' : ''}`, 'success');
+  await renderNFe();
+}
+
+// ---- Render página ----
+async function renderNFe() {
+  renderTabs('tabs-nfe', 'selectTabEmpresa');
+  const empIds = empresas.filter(e => e.grupo_id === grupoAtivo && (!empresaAtiva || e.id === empresaAtiva)).map(e => e.id);
+  const filtroTipo = document.getElementById('filtro-nfe-tipo')?.value || '';
+  const filtroOp   = document.getElementById('filtro-nfe-op')?.value || '';
+  const search     = document.getElementById('nfe-search')?.value?.toLowerCase() || '';
+
+  let q = sb.from('notas_fiscais').select('*').in('empresa_id', empIds).order('data_emissao', { ascending: false });
+  if (filtroTipo) q = q.eq('tipo', filtroTipo);
+  if (filtroOp)   q = q.eq('operacao', filtroOp);
+
+  const { data } = await q;
+  let notas = data || [];
+
+  // Filtro de busca local
+  if (search) {
+    notas = notas.filter(n =>
+      n.nome_emitente?.toLowerCase().includes(search) ||
+      n.nome_destinatario?.toLowerCase().includes(search) ||
+      n.chave_acesso?.includes(search) ||
+      n.numero?.includes(search)
+    );
+  }
+
+  // Resumo
+  const emitidas  = notas.filter(n => n.operacao === 'emitida').reduce((s, n) => s + Number(n.valor_total || 0), 0);
+  const recebidas = notas.filter(n => n.operacao === 'recebida').reduce((s, n) => s + Number(n.valor_total || 0), 0);
+  const ultima    = notas[0]?.data_emissao ? fmtDate(notas[0].data_emissao) : '--';
+
+  document.getElementById('nfe-count').textContent    = notas.length;
+  document.getElementById('nfe-emitido').textContent  = fmt(emitidas);
+  document.getElementById('nfe-recebido').textContent = fmt(recebidas);
+  document.getElementById('nfe-ultima').textContent   = ultima;
+
+  // Tabela
+  const wrap = document.getElementById('nfe-wrap');
+  if (!notas.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📄</div><p>Nenhuma nota fiscal encontrada.<br>Clique em "+ Upload XML" para importar.</p></div>`;
+    return;
+  }
+
+  const tipoLabel = { nfe:'NF-e', nfse:'NFS-e', cte:'CT-e', nfce:'NFC-e' };
+  const opLabel   = { emitida:'<span class="badge badge-red">Emitida</span>', recebida:'<span class="badge badge-green">Recebida</span>' };
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Tipo</th><th>Op.</th><th>Número</th><th>Data</th>
+      <th>Emitente</th><th>Destinatário</th><th>Nat. Operação</th>
+      <th>Valor Total</th><th>Status</th><th></th>
+    </tr></thead>
+    <tbody>${notas.map(n => `<tr>
+      <td><span class="badge badge-gray">${tipoLabel[n.tipo] || n.tipo}</span></td>
+      <td>${opLabel[n.operacao] || n.operacao}</td>
+      <td class="td-mono">${n.numero || '--'}${n.serie ? '-' + n.serie : ''}</td>
+      <td>${fmtDate(n.data_emissao)}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.nome_emitente || '--'}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.nome_destinatario || '--'}</td>
+      <td style="font-size:11px;color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.natureza_operacao || '--'}</td>
+      <td class="td-mono" style="font-weight:600">${fmt(n.valor_total)}</td>
+      <td><span class="badge ${n.status === 'ativa' ? 'badge-green' : 'badge-red'}">${n.status}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="verNota('${n.id}')">Ver</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function verNota(id) {
+  const { data: nota } = await sb.from('notas_fiscais').select('*').eq('id', id).single();
+  const { data: itens } = await sb.from('nf_itens').select('*').eq('nota_id', id).order('numero_item');
+  if (!nota) return;
+
+  const tipoLabel = { nfe:'NF-e', nfse:'NFS-e', cte:'CT-e', nfce:'NFC-e' };
+  const itensHtml = itens?.length ? `
+    <div style="margin-top:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Itens (${itens.length})</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Código</th><th>Descrição</th><th>NCM</th><th>CFOP</th><th>Qtd</th><th>Vl.Unit</th><th>Vl.Total</th></tr></thead>
+        <tbody>${itens.map(it => `<tr>
+          <td class="td-mono">${it.numero_item}</td>
+          <td class="td-mono">${it.codigo_produto || '--'}</td>
+          <td>${it.descricao || '--'}</td>
+          <td class="td-mono">${it.ncm || '--'}</td>
+          <td class="td-mono">${it.cfop || '--'}</td>
+          <td class="td-mono">${Number(it.quantidade).toLocaleString('pt-BR')}</td>
+          <td class="td-mono">${fmt(it.valor_unitario)}</td>
+          <td class="td-mono" style="font-weight:600">${fmt(it.valor_total)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>` : '';
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal" style="width:680px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="modal-title" style="margin-bottom:0">${tipoLabel[nota.tipo] || nota.tipo} Nº ${nota.numero || '--'} · Série ${nota.serie || '--'}</div>
+      <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:var(--bg);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Emitente</div>
+        <div style="font-size:13px;font-weight:600">${nota.nome_emitente || '--'}</div>
+        <div style="font-size:11px;color:var(--text2)">${nota.cnpj_emitente || ''}</div>
+      </div>
+      <div style="background:var(--bg);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Destinatário</div>
+        <div style="font-size:13px;font-weight:600">${nota.nome_destinatario || '--'}</div>
+        <div style="font-size:11px;color:var(--text2)">${nota.cnpj_destinatario || ''}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Data emissão</div>
+        <div style="font-size:13px;font-weight:600">${fmtDate(nota.data_emissao)}</div>
+      </div>
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Nat. Operação</div>
+        <div style="font-size:12px;font-weight:500">${nota.natureza_operacao || '--'}</div>
+      </div>
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Valor Total</div>
+        <div style="font-size:13px;font-weight:700;color:var(--wine)">${fmt(nota.valor_total)}</div>
+      </div>
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">ICMS / IPI</div>
+        <div style="font-size:12px;font-weight:500">${fmt(nota.valor_icms)} / ${fmt(nota.valor_ipi)}</div>
+      </div>
+    </div>
+    ${nota.chave_acesso ? `<div style="background:var(--bg);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:14px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Chave de acesso</div>
+      <div class="td-mono" style="font-size:11px;word-break:break-all">${nota.chave_acesso}</div>
+    </div>` : ''}
+    ${itensHtml}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Fechar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+// ---- Abrir modal NF-e ----
+function openModalNFe() {
+  const g = grupo();
+  document.getElementById('nfe-empresa').innerHTML = g.empresas.map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
+  xmlFilesQueue = [];
+  renderFileList();
+  document.getElementById('nfe-upload-btn').style.display = 'none';
+  document.getElementById('nfe-progress').style.display = 'none';
+  document.getElementById('nfe-progress-bar').style.width = '0%';
+  document.getElementById('modal-nfe').classList.add('open');
+}
+
+// ============================================================
 // SIDEBAR TOGGLE (responsivo)
 // ============================================================
 function toggleSidebar() {
@@ -1248,6 +1666,7 @@ async function navigate(page) {
   // Topbar actions
   const acts = {
     extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}],
+    nfe:    [{label:'+ Upload XML', cls:'btn-primary', fn:'openModalNFe()'}],
     pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
     receber: [{label:'+ Nova conta a receber', cls:'btn-primary', fn:'openModal("modal-receber")'}],
   };
@@ -1263,6 +1682,7 @@ async function renderPage(page) {
   if (page==='pagar')        await renderPagar();
   if (page==='receber')      await renderReceber();
   if (page==='conciliacao')  await renderConciliacao();
+  if (page==='nfe')           await renderNFe();
   if (page==='plano')        renderPlano();
   if (page==='empresas')     renderEmpresas();
 }
