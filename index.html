@@ -1448,9 +1448,20 @@ async function renderNFe() {
       <td style="font-size:11px;color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.natureza_operacao || '--'}</td>
       <td class="td-mono" style="font-weight:600">${fmt(n.valor_total)}</td>
       <td><span class="badge ${n.status === 'ativa' ? 'badge-green' : 'badge-red'}">${n.status}</span></td>
-      <td><button class="btn btn-ghost btn-sm" onclick="verNota('${n.id}')">Ver</button></td>
+      <td style="display:flex;gap:5px">
+        <button class="btn btn-ghost btn-sm" onclick="verNota('${n.id}')">Ver</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red-light)" onclick="deletarNota('${n.id}', '${n.numero || ''}')">✕</button>
+      </td>
     </tr>`).join('')}</tbody>
   </table>`;
+}
+
+async function deletarNota(id, numero) {
+  if (!confirm(`Confirma exclusão da nota Nº ${numero}?\nEsta ação não pode ser desfeita.`)) return;
+  const { error } = await sb.from('notas_fiscais').delete().eq('id', id);
+  if (error) { toast('Erro ao deletar: ' + error.message, 'error'); return; }
+  toast('Nota excluída com sucesso!', 'success');
+  await renderNFe();
 }
 
 async function verNota(id) {
