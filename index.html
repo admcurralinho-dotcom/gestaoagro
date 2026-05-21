@@ -1833,18 +1833,69 @@ async function carregarNFSocio() {
   const { data } = await sb.from('socios_notas_fiscais').select('*').eq('socio_id', socioAtivo).order('data_emissao', {ascending:false});
   const wrap = document.getElementById('socio-nf-wrap');
   if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhuma nota fiscal cadastrada.</p></div>'; return; }
-  wrap.innerHTML = `<table><thead><tr><th>Tipo</th><th>Op.</th><th>Número</th><th>Data</th><th>Emitente</th><th>Destinatário</th><th>Valor</th><th>Status</th></tr></thead><tbody>${
+  wrap.innerHTML = `<table><thead><tr><th>Tipo</th><th>Op.</th><th>Número</th><th>Data</th><th>Emitente</th><th>Valor</th><th>Itens</th><th>Status</th><th></th></tr></thead><tbody>${
     data.map(n=>`<tr>
-      <td><span class="badge badge-gray">${n.tipo==='nf_produtor'?'NF Produtor':n.tipo}</span></td>
+      <td><span class="badge badge-gray">${n.tipo==='nf_produtor'?'NF Produtor':n.tipo.toUpperCase()}</span></td>
       <td>${n.operacao==='emitida'?'<span class="badge badge-red">Emitida</span>':'<span class="badge badge-green">Recebida</span>'}</td>
       <td class="td-mono">${n.numero||'--'}</td>
       <td>${fmtDate(n.data_emissao)}</td>
-      <td style="font-size:12px">${n.nome_emitente||'--'}</td>
-      <td style="font-size:12px">${n.nome_destinatario||'--'}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.nome_emitente||'--'}</td>
       <td class="td-mono" style="font-weight:600">${fmt(n.valor_total)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="verItensSocioNF('${n.id}', '${(n.nome_emitente||'').replace(/'/g,"\\'")}', '${n.numero||''}')">Ver itens</button></td>
       <td><span class="badge badge-green">${n.status}</span></td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletarNFSocio('${n.id}')">✕</button></td>
     </tr>`).join('')
   }</tbody></table>`;
+}
+
+async function deletarNFSocio(id) {
+  if (!confirm('Remover esta nota fiscal?')) return;
+  await sb.from('socios_notas_fiscais').delete().eq('id', id);
+  toast('Nota removida!', 'success');
+  carregarNFSocio();
+}
+
+async function verItensSocioNF(notaId, nomeEmitente, numero) {
+  const { data: itens } = await sb.from('socios_nf_itens').select('*').eq('nota_id', notaId).order('numero_item');
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal" style="width:700px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="modal-title" style="margin-bottom:0">Itens — NF ${numero} · ${nomeEmitente}</div>
+      <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">✕</button>
+    </div>
+    ${!itens?.length ? '<div class="empty"><p>Nenhum item registrado nesta nota.</p></div>' : `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Código</th><th>Descrição</th><th>NCM</th><th>CFOP</th><th>Unidade</th><th>Quantidade</th><th>Vl. Unit.</th><th>Vl. Total</th></tr></thead>
+        <tbody>
+          ${itens.map(it=>`<tr>
+            <td class="td-mono">${it.numero_item}</td>
+            <td class="td-mono" style="font-size:11px">${it.codigo_produto||'--'}</td>
+            <td style="font-weight:500;max-width:200px">${it.descricao||'--'}</td>
+            <td class="td-mono" style="font-size:11px">${it.ncm||'--'}</td>
+            <td class="td-mono" style="font-size:11px">${it.cfop||'--'}</td>
+            <td style="font-size:12px">${it.unidade||'--'}</td>
+            <td class="td-mono">${Number(it.quantidade).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+            <td class="td-mono">${fmt(it.valor_unitario)}</td>
+            <td class="td-mono" style="font-weight:600;color:var(--wine)">${fmt(it.valor_total)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--bg)">
+            <td colspan="8" style="text-align:right;font-weight:600;padding:10px 16px">Total:</td>
+            <td class="td-mono" style="font-weight:700;color:var(--wine);padding:10px 16px">${fmt(itens.reduce((s,i)=>s+Number(i.valor_total||0),0))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Fechar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
 async function deletarVinculo(id) {
@@ -2119,6 +2170,27 @@ function parseXmlNFeSocio(xmlStr) {
   // Chave
   const chave = gAttr('infNFe', 'Id')?.replace('NFe','') || g('chNFe');
 
+  // Extrair itens
+  const itens = [];
+  doc.querySelectorAll('*|det').forEach((det, idx) => {
+    const prod = det.querySelector('*|prod');
+    if (!prod) return;
+    const imp = det.querySelector('*|imposto');
+    const vICMS = imp?.querySelector('*|vICMS')?.textContent?.trim() || '0';
+    itens.push({
+      numero_item: idx + 1,
+      codigo_produto: prod.querySelector('*|cProd')?.textContent?.trim() || '',
+      descricao: prod.querySelector('*|xProd')?.textContent?.trim() || '',
+      ncm: prod.querySelector('*|NCM')?.textContent?.trim() || '',
+      cfop: prod.querySelector('*|CFOP')?.textContent?.trim() || '',
+      unidade: prod.querySelector('*|uCom')?.textContent?.trim() || prod.querySelector('*|uTrib')?.textContent?.trim() || '',
+      quantidade: parseFloat(prod.querySelector('*|qCom')?.textContent?.trim() || '0'),
+      valor_unitario: parseFloat(prod.querySelector('*|vUnCom')?.textContent?.trim() || '0'),
+      valor_total: parseFloat(prod.querySelector('*|vProd')?.textContent?.trim() || det.querySelector('*|vItem')?.textContent?.trim() || '0'),
+      valor_icms: parseFloat(vICMS),
+    });
+  });
+
   return {
     chave_acesso: chave || null,
     numero: g('nNF'),
@@ -2133,8 +2205,9 @@ function parseXmlNFeSocio(xmlStr) {
     valor_total: parseFloat(g('vNF') || '0'),
     natureza_operacao: g('natOp'),
     forma_pagamento: tPagLabels[tPag] || tPag,
-    ind_pagamento: indPag, // 0=vista, 1=prazo
+    ind_pagamento: indPag,
     duplicatas: dups,
+    itens,
     xml_raw: xmlStr,
   };
 }
@@ -2188,6 +2261,7 @@ async function previewNFSocioFile(file) {
   const xml = await file.text();
   const nota = parseXmlNFeSocio(xml);
   nfSocioData = nota;
+  nfSocioData._itens = nota.itens || [];
 
   // Detectar sócio pela IE
   const ieDetect = nota.ie_destinatario || nota.ie_emitente;
@@ -2225,6 +2299,17 @@ async function previewNFSocioFile(file) {
         <span style="font-size:16px">⚠️</span>
         <div style="font-size:12px;color:var(--amber)">IE não encontrada nos cadastros. A nota será vinculada ao sócio atual.</div>
       </div>`}
+
+      ${nota.itens?.length > 0 ? `
+      <div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:6px">Itens da nota (${nota.itens.length})</div>
+        <div style="max-height:150px;overflow-y:auto">
+        ${nota.itens.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;padding-right:8px"><strong>${it.descricao}</strong><span style="color:var(--text3);margin-left:6px">${it.codigo_produto}</span></div>
+          <div style="text-align:right;white-space:nowrap"><span style="color:var(--text2)">${it.quantidade} ${it.unidade} × ${fmt(it.valor_unitario)}</span> = <strong>${fmt(it.valor_total)}</strong></div>
+        </div>`).join('')}
+        </div>
+      </div>` : ''}
 
       ${nota.duplicatas.length > 0 ? `
       <div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
@@ -2273,8 +2358,26 @@ async function salvarNFSocio() {
     xml_raw: nfSocioData.xml_raw,
   };
 
-  const { error: errNF } = await sb.from('socios_notas_fiscais').insert(obj);
+  const { data: notaSalva, error: errNF } = await sb.from('socios_notas_fiscais').insert(obj).select().single();
   if (errNF) { toast('Erro ao salvar nota: ' + errNF.message, 'error'); btn.disabled=false; btn.textContent='✓ Importar'; return; }
+
+  // 1b. Salvar itens da nota
+  if (notaSalva && nfSocioData._itens?.length > 0) {
+    const itensInsert = nfSocioData._itens.map(it => ({
+      nota_id: notaSalva.id,
+      numero_item: it.numero_item,
+      codigo_produto: it.codigo_produto,
+      descricao: it.descricao,
+      ncm: it.ncm,
+      cfop: it.cfop,
+      unidade: it.unidade,
+      quantidade: it.quantidade,
+      valor_unitario: it.valor_unitario,
+      valor_total: it.valor_total,
+      valor_icms: it.valor_icms || 0,
+    }));
+    await sb.from('socios_nf_itens').insert(itensInsert);
+  }
 
   // 2. Criar contas a pagar
   let contasCriadas = 0;
