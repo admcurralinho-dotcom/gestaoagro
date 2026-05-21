@@ -1647,14 +1647,28 @@ let socioTabAtiva = 'dados';
 
 // ---- Render lista ----
 async function renderSocios() {
-  const search = document.getElementById('socios-search')?.value?.toLowerCase() || '';
-  const { data } = await sb.from('socios_pf').select('*').order('nome');
+  // Aguardar DOM estar pronto
+  await new Promise(r => setTimeout(r, 50));
+  
+  const searchEl = document.getElementById('socios-search');
+  const search = searchEl?.value?.toLowerCase() || '';
+  const { data, error } = await sb.from('socios_pf').select('*').order('nome');
+  
+  if (error) {
+    console.error('Erro sócios:', error);
+    const wrap = document.getElementById('socios-wrap');
+    if (wrap) wrap.innerHTML = '<div class="empty"><p>Erro ao carregar: ' + error.message + '</p></div>';
+    return;
+  }
+  
   let socios = data || [];
   if (search) socios = socios.filter(s => s.nome?.toLowerCase().includes(search) || s.cpf?.includes(search));
 
   // Esconder detalhe se aberto
-  document.getElementById('socio-detalhe').style.display = 'none';
-  document.getElementById('socios-lista-card').style.display = 'block';
+  const det = document.getElementById('socio-detalhe');
+  const lista = document.getElementById('socios-lista-card');
+  if (det) det.style.display = 'none';
+  if (lista) lista.style.display = 'block';
 
   const wrap = document.getElementById('socios-wrap');
   if (!socios.length) {
