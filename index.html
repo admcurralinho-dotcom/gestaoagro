@@ -2559,7 +2559,7 @@ async function carregarCotacoes() {
     // Dólar e Euro via AwesomeAPI (gratuita, brasileira, sem CORS)
     const [resCambio, resSoja] = await Promise.all([
       fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL').then(r=>r.json()),
-      fetch('https://query1.finance.yahoo.com/v8/finance/chart/ZS=F?interval=1d&range=1d').then(r=>r.json()).catch(()=>null),
+      Promise.resolve(null),
     ]);
 
     const usd = resCambio?.USDBRL;
