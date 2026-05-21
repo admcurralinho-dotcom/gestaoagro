@@ -2064,25 +2064,103 @@ async function salvarPagarSocio() {
   carregarPagarSocio();
 }
 
+// ---- Parser específico para NF com IE e pagamento ----
+function parseXmlNFeSocio(xmlStr) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlStr, 'text/xml');
+  const NS = 'http://www.portalfiscal.inf.br/nfe';
+  const g = tag => doc.querySelector(`*|${tag}`)?.textContent?.trim() || '';
+  const gAttr = (tag, attr) => doc.querySelector(`*|${tag}`)?.getAttribute(attr) || '';
+
+  // IE do emitente e destinatário
+  const emit = doc.querySelector('*|emit');
+  const dest = doc.querySelector('*|dest');
+  const ieEmit = emit?.querySelector('*|IE')?.textContent?.trim() || '';
+  const ieDest = dest?.querySelector('*|IE')?.textContent?.trim() || '';
+  const cpfDest = dest?.querySelector('*|CPF')?.textContent?.trim() || '';
+  const cnpjDest = dest?.querySelector('*|CNPJ')?.textContent?.trim() || '';
+
+  // Forma de pagamento
+  const detPag = doc.querySelector('*|detPag');
+  const tPag = detPag?.querySelector('*|tPag')?.textContent?.trim() || '';
+  const indPag = detPag?.querySelector('*|indPag')?.textContent?.trim() || '0';
+  // indPag: 0=à vista, 1=a prazo
+
+  const tPagLabels = {
+    '01':'Dinheiro','02':'Cheque','03':'Cartão Crédito','04':'Cartão Débito',
+    '05':'Crédito Loja','10':'Vale Alimentação','11':'Vale Refeição',
+    '12':'Vale Presente','13':'Vale Combustível','15':'Boleto','90':'Sem pagamento',
+    '99':'Outros'
+  };
+
+  // Duplicatas (vencimentos)
+  const dups = [];
+  doc.querySelectorAll('*|dup').forEach(dup => {
+    const nDup  = dup.querySelector('*|nDup')?.textContent?.trim() || '001';
+    const dVenc = dup.querySelector('*|dVenc')?.textContent?.trim() || '';
+    const vDup  = parseFloat(dup.querySelector('*|vDup')?.textContent?.trim() || '0');
+    if (dVenc) dups.push({ parcela: nDup, vencimento: dVenc, valor: vDup });
+  });
+
+  // Chave
+  const chave = gAttr('infNFe', 'Id')?.replace('NFe','') || g('chNFe');
+
+  return {
+    chave_acesso: chave || null,
+    numero: g('nNF'),
+    serie: g('serie'),
+    data_emissao: g('dhEmi')?.slice(0,10) || null,
+    cnpj_cpf_emitente: emit?.querySelector('*|CNPJ')?.textContent?.trim() || emit?.querySelector('*|CPF')?.textContent?.trim() || '',
+    nome_emitente: g('xNome') || g('xFant'),
+    cnpj_cpf_destinatario: cnpjDest || cpfDest,
+    nome_destinatario: dest?.querySelector('*|xNome')?.textContent?.trim() || '',
+    ie_emitente: ieEmit,
+    ie_destinatario: ieDest,
+    valor_total: parseFloat(g('vNF') || '0'),
+    natureza_operacao: g('natOp'),
+    forma_pagamento: tPagLabels[tPag] || tPag,
+    ind_pagamento: indPag, // 0=vista, 1=prazo
+    duplicatas: dups,
+    xml_raw: xmlStr,
+  };
+}
+
+async function detectarSocioPorIE(ie) {
+  if (!ie) return null;
+  const ieClean = ie.replace(/\D/g,'');
+  const { data } = await sb.from('socios_inscricoes_estaduais')
+    .select('*, socios_pf(id, nome)')
+    .eq('inscricao_estadual', ieClean)
+    .eq('ativo', true)
+    .maybeSingle();
+  return data || null;
+}
+
 function openModalNFSocio() {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay open';
-  modal.innerHTML = `<div class="modal">
-    <div class="modal-title">Upload XML — NF Produtor Rural</div>
-    <div class="form-group"><label class="form-label">Operação</label>
-      <select class="form-select" id="mnf-op"><option value="emitida">Emitida</option><option value="recebida">Recebida</option></select>
+  modal.id = 'modal-nf-socio';
+  modal.innerHTML = `<div class="modal" style="width:580px">
+    <div class="modal-title">Upload XML — NF / Compra do Sócio</div>
+    <div class="alert alert-warn" style="margin-bottom:14px">
+      O sistema detecta automaticamente o sócio pela Inscrição Estadual e cria contas a pagar se houver vencimento.
     </div>
     <div class="form-group"><label class="form-label">Arquivo XML</label>
-      <div onclick="document.getElementById('mnf-file').click()" style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;background:var(--bg)">
-        <div style="font-size:24px">📄</div>
-        <div style="font-size:13px;font-weight:500;margin-top:6px">Clique ou arraste o XML</div>
+      <div onclick="document.getElementById('mnf-file').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--wine)'"
+        ondragleave="this.style.borderColor='var(--border2)'"
+        ondrop="event.preventDefault();previewNFSocioFile(event.dataTransfer.files[0])"
+        style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:28px;text-align:center;cursor:pointer;background:var(--bg);transition:border-color .15s">
+        <div style="font-size:28px">📄</div>
+        <div style="font-size:13px;font-weight:500;margin-top:6px">Arraste o XML aqui ou clique para selecionar</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">NF-e, NF Produtor Rural, CT-e</div>
       </div>
-      <input type="file" id="mnf-file" accept=".xml" style="display:none" onchange="previewNFSocio(this)">
+      <input type="file" id="mnf-file" accept=".xml" style="display:none" onchange="previewNFSocioFile(this.files[0])">
     </div>
-    <div id="mnf-preview" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+    <div id="mnf-preview" style="margin-top:10px"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="this.closest('.modal-overlay')?.remove()">Cancelar</button>
-      <button class="btn btn-primary" id="mnf-btn" onclick="salvarNFSocio()" style="display:none">Importar</button>
+      <button class="btn btn-primary" id="mnf-btn" onclick="salvarNFSocio()" style="display:none">✓ Importar e criar vencimentos</button>
     </div>
   </div>`;
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
@@ -2090,47 +2168,136 @@ function openModalNFSocio() {
 }
 
 let nfSocioData = null;
-async function previewNFSocio(input) {
-  const file = input.files[0];
+
+async function previewNFSocioFile(file) {
   if (!file) return;
   const xml = await file.text();
-  const nota = parseXmlNFe(xml);
-  nfSocioData = { ...nota, xml_raw: xml };
-  document.getElementById('mnf-preview').innerHTML = `
-    <div style="background:var(--bg);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
-      <div><strong>Emitente:</strong> ${nota.nome_emitente || '--'}</div>
-      <div><strong>Destinatário:</strong> ${nota.nome_destinatario || '--'}</div>
-      <div><strong>Valor:</strong> ${fmt(nota.valor_total)}</div>
-      <div><strong>Data:</strong> ${fmtDate(nota.data_emissao)}</div>
+  const nota = parseXmlNFeSocio(xml);
+  nfSocioData = nota;
+
+  // Detectar sócio pela IE
+  const ieDetect = nota.ie_destinatario || nota.ie_emitente;
+  const socioDetect = await detectarSocioPorIE(ieDetect);
+
+  // Determinar operação (entrada = recebida pelo sócio = compra)
+  const operacao = nota.ind_pagamento === '1' ? 'a prazo' : 'à vista';
+
+  const preview = document.getElementById('mnf-preview');
+  preview.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:8px">Dados da nota</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+          <div><span style="color:var(--text3)">Emitente:</span> <strong>${nota.nome_emitente||'--'}</strong></div>
+          <div><span style="color:var(--text3)">Destinatário:</span> <strong>${nota.nome_destinatario||'--'}</strong></div>
+          <div><span style="color:var(--text3)">NF nº:</span> ${nota.numero||'--'} · Série ${nota.serie||'--'}</div>
+          <div><span style="color:var(--text3)">Data:</span> ${fmtDate(nota.data_emissao)}</div>
+          <div><span style="color:var(--text3)">Valor:</span> <strong style="color:var(--wine)">${fmt(nota.valor_total)}</strong></div>
+          <div><span style="color:var(--text3)">Pagamento:</span> ${nota.forma_pagamento} · <strong>${operacao}</strong></div>
+          <div><span style="color:var(--text3)">IE destinatário:</span> <code style="font-size:11px">${nota.ie_destinatario||'--'}</code></div>
+          <div><span style="color:var(--text3)">IE emitente:</span> <code style="font-size:11px">${nota.ie_emitente||'--'}</code></div>
+        </div>
+      </div>
+
+      ${socioDetect ? `
+      <div style="background:var(--green-light);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--green-mid);display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">✅</span>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--green)">Sócio identificado automaticamente!</div>
+          <div style="font-size:11px;color:var(--green)">${socioDetect.socios_pf?.nome} — IE ${ieDetect}</div>
+        </div>
+      </div>` : `
+      <div style="background:var(--amber-light);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid #EFC97A;display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">⚠️</span>
+        <div style="font-size:12px;color:var(--amber)">IE não encontrada nos cadastros. A nota será vinculada ao sócio atual.</div>
+      </div>`}
+
+      ${nota.duplicatas.length > 0 ? `
+      <div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:6px">Vencimentos detectados (${nota.duplicatas.length} parcela${nota.duplicatas.length>1?'s':''})</div>
+        ${nota.duplicatas.map(d=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
+          <span>Parcela ${d.parcela}</span><span>${fmtDate(d.vencimento)}</span><span style="font-weight:600">${fmt(d.valor)}</span>
+        </div>`).join('')}
+      </div>` : nota.ind_pagamento === '1' ? `
+      <div style="background:var(--amber-light);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid #EFC97A;font-size:12px;color:var(--amber)">
+        ⚠️ Pagamento a prazo mas sem duplicata na NF — informe o vencimento manualmente:
+        <input type="date" id="mnf-venc-manual" class="form-input" style="margin-top:6px;font-size:12px" value="${new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,10)}">
+      </div>` : `
+      <div style="background:var(--green-light);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--green-mid);font-size:12px;color:var(--green)">
+        ✅ Pagamento à vista — nenhum vencimento futuro será criado.
+      </div>`}
     </div>`;
+
+  // Guardar socio detectado
+  nfSocioData._socioDetectado = socioDetect?.socios_pf?.id || socioAtivo;
   document.getElementById('mnf-btn').style.display = '';
 }
 
 async function salvarNFSocio() {
   if (!nfSocioData) return;
-  const op = document.getElementById('mnf-op').value;
+  const btn = document.getElementById('mnf-btn');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  const sid = nfSocioData._socioDetectado || socioAtivo;
+
+  // 1. Salvar nota fiscal
   const obj = {
-    socio_id: socioAtivo,
-    tipo: nfSocioData.tipo || 'nf_produtor',
-    operacao: op,
+    socio_id: sid,
+    tipo: 'nfe',
+    operacao: 'recebida',
     chave_acesso: nfSocioData.chave_acesso || null,
     numero: nfSocioData.numero,
     serie: nfSocioData.serie,
     data_emissao: nfSocioData.data_emissao,
-    cnpj_cpf_emitente: nfSocioData.cnpj_emitente,
+    cnpj_cpf_emitente: nfSocioData.cnpj_cpf_emitente,
     nome_emitente: nfSocioData.nome_emitente,
-    cnpj_cpf_destinatario: nfSocioData.cnpj_destinatario,
+    cnpj_cpf_destinatario: nfSocioData.cnpj_cpf_destinatario,
     nome_destinatario: nfSocioData.nome_destinatario,
     valor_total: nfSocioData.valor_total,
     natureza_operacao: nfSocioData.natureza_operacao,
     status: 'ativa',
     xml_raw: nfSocioData.xml_raw,
   };
-  const { error } = await sb.from('socios_notas_fiscais').insert(obj);
-  if (error) { toast('Erro: ' + error.message, 'error'); return; }
-  toast('Nota importada!', 'success');
+
+  const { error: errNF } = await sb.from('socios_notas_fiscais').insert(obj);
+  if (errNF) { toast('Erro ao salvar nota: ' + errNF.message, 'error'); btn.disabled=false; btn.textContent='✓ Importar'; return; }
+
+  // 2. Criar contas a pagar
+  let contasCriadas = 0;
+  if (nfSocioData.duplicatas.length > 0) {
+    for (const dup of nfSocioData.duplicatas) {
+      await sb.from('socios_contas_pagar').insert({
+        socio_id: sid,
+        fornecedor: nfSocioData.nome_emitente || 'Fornecedor',
+        descricao: `NF ${nfSocioData.numero}/${nfSocioData.serie} · Parcela ${dup.parcela}`,
+        valor: dup.valor,
+        vencimento: dup.vencimento,
+        numero_doc: nfSocioData.numero,
+        status: 'pendente',
+      });
+      contasCriadas++;
+    }
+  } else if (nfSocioData.ind_pagamento === '1') {
+    // Vencimento manual
+    const vencManual = document.getElementById('mnf-venc-manual')?.value;
+    if (vencManual) {
+      await sb.from('socios_contas_pagar').insert({
+        socio_id: sid,
+        fornecedor: nfSocioData.nome_emitente || 'Fornecedor',
+        descricao: `NF ${nfSocioData.numero}/${nfSocioData.serie}`,
+        valor: nfSocioData.valor_total,
+        vencimento: vencManual,
+        numero_doc: nfSocioData.numero,
+        status: 'pendente',
+      });
+      contasCriadas++;
+    }
+  }
+
+  toast(`Nota importada!${contasCriadas > 0 ? ' ' + contasCriadas + ' vencimento(s) criado(s).' : ' Pagamento à vista.'}`, 'success');
   document.querySelector('.modal-overlay')?.remove();
   carregarNFSocio();
+  if (contasCriadas > 0) carregarPagarSocio();
 }
 
 // ============================================================
