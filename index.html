@@ -1648,7 +1648,7 @@ let socioTabAtiva = 'dados';
 // ---- Render lista ----
 async function renderSocios() {
   const search = document.getElementById('socios-search')?.value?.toLowerCase() || '';
-  const { data } = await sb.from('socios_pf').select('*, socios_empresas(count), socios_inscricoes_estaduais(count)').order('nome');
+  const { data } = await sb.from('socios_pf').select('*').order('nome');
   let socios = data || [];
   if (search) socios = socios.filter(s => s.nome?.toLowerCase().includes(search) || s.cpf?.includes(search));
 
