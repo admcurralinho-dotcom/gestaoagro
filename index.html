@@ -1811,14 +1811,19 @@ async function carregarPagarSocio() {
   const { data } = await sb.from('socios_contas_pagar').select('*').eq('socio_id', socioAtivo).order('vencimento');
   const wrap = document.getElementById('socio-pagar-wrap');
   if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhuma conta a pagar cadastrada.</p></div>'; return; }
-  wrap.innerHTML = `<table><thead><tr><th>Fornecedor</th><th>Nº Doc</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${
+  wrap.innerHTML = `<table><thead><tr><th>Fornecedor</th><th>Descrição</th><th>Nº Doc</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody>${
     data.map(r=>`<tr>
       <td style="font-weight:500">${r.fornecedor}</td>
+      <td style="font-size:11px;color:var(--text2)">${r.descricao||'--'}</td>
       <td class="td-mono">${r.numero_doc||'--'}</td>
       <td>${fmtDate(r.vencimento)}</td>
       <td class="td-mono">${fmt(r.valor)}</td>
       <td>${badgeStatus(r.status)}</td>
-      <td>${r.status!=='pago'?`<button class="btn btn-ghost btn-sm" onclick="marcarPagoSocio('${r.id}')">✓ Pagar</button>`:''}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${r.status !== 'pago' ? `<button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:var(--green-light)" onclick="marcarPagoSocio('${r.id}')">✓ Pagar</button>` : ''}
+        ${r.status === 'pago' ? `<button class="btn btn-ghost btn-sm" style="color:var(--amber)" onclick="desfazerPagoSocio('${r.id}')">↩ Desfazer</button>` : ''}
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletarContaSocio('${r.id}')">✕</button>
+      </td>
     </tr>`).join('')
   }</tbody></table>`;
 }
@@ -1826,6 +1831,21 @@ async function carregarPagarSocio() {
 async function marcarPagoSocio(id) {
   await sb.from('socios_contas_pagar').update({status:'pago', pago_em: new Date().toISOString().slice(0,10)}).eq('id',id);
   toast('Marcado como pago!', 'success');
+  carregarPagarSocio();
+}
+
+async function desfazerPagoSocio(id) {
+  if (!confirm('Desfazer pagamento e voltar para pendente?')) return;
+  await sb.from('socios_contas_pagar').update({status:'pendente', pago_em: null}).eq('id',id);
+  toast('Voltou para pendente!', 'success');
+  carregarPagarSocio();
+}
+
+async function deletarContaSocio(id) {
+  if (!confirm('Excluir esta conta a pagar?\nEsta ação não pode ser desfeita.')) return;
+  const { error } = await sb.from('socios_contas_pagar').delete().eq('id',id);
+  if (error) { toast('Erro ao excluir: ' + error.message, 'error'); return; }
+  toast('Conta excluída!', 'success');
   carregarPagarSocio();
 }
 
