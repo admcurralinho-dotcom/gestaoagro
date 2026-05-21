@@ -276,6 +276,15 @@ tr:hover td { background: var(--bg); }
 .toast.error { background: var(--red); }
 @keyframes slideup { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+.socio-tab {
+  padding: 7px 14px; font-size: 12.5px; font-weight: 500; cursor: pointer;
+  border: none; background: none; color: var(--text2); border-bottom: 2px solid transparent;
+  transition: all .15s; font-family: var(--font);
+}
+.socio-tab:hover { color: var(--text); }
+.socio-tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+.socio-tab-content { }
+
 /* CONCILIAÇÃO */
 .concil-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
 .concil-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -339,6 +348,10 @@ tr:hover td { background: var(--bg); }
     </div>
     <div class="nav-section">
       <div class="nav-label">Cadastros</div>
+      <div class="nav-item" onclick="navigate('socios')">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 14c0-3 2-5 5-5s5 2 5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M11 7c1.5 0 3 1 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Sócios PF
+      </div>
       <div class="nav-item" onclick="navigate('plano')">
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 7h8M2 11h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         Plano de contas
@@ -597,6 +610,89 @@ tr:hover td { background: var(--bg); }
         </div>
       </div>
 
+    </div>
+
+    <!-- SÓCIOS PF -->
+    <div class="page" id="page-socios">
+
+      <!-- Lista de sócios -->
+      <div class="card" id="socios-lista-card">
+        <div class="card-header">
+          <div class="card-title">Sócios / Produtores Rurais</div>
+          <input type="text" class="form-input" id="socios-search" placeholder="Buscar por nome ou CPF..." style="width:260px;font-size:12px" oninput="renderSocios()">
+        </div>
+        <div class="table-wrap" id="socios-wrap">
+          <div class="loading"><div class="spinner"></div> Carregando...</div>
+        </div>
+      </div>
+
+      <!-- Detalhe do sócio (abre ao clicar) -->
+      <div id="socio-detalhe" style="display:none;margin-top:16px">
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <button onclick="fecharDetalhe()" class="btn btn-ghost btn-sm">← Voltar</button>
+          <div class="page-title" id="socio-detalhe-nome" style="font-size:16px"></div>
+        </div>
+
+        <!-- Tabs do sócio -->
+        <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:0">
+          <button class="socio-tab active" onclick="showSocioTab('dados')" id="tab-dados">Dados pessoais</button>
+          <button class="socio-tab" onclick="showSocioTab('empresas')" id="tab-empresas">Vínculos societários</button>
+          <button class="socio-tab" onclick="showSocioTab('ie')" id="tab-ie">Inscrições estaduais</button>
+          <button class="socio-tab" onclick="showSocioTab('extrato')" id="tab-extrato">Extrato bancário</button>
+          <button class="socio-tab" onclick="showSocioTab('pagar')" id="tab-pagar">Contas a pagar</button>
+          <button class="socio-tab" onclick="showSocioTab('nf')" id="tab-nf">Notas fiscais</button>
+        </div>
+
+        <!-- Tab: Dados pessoais -->
+        <div id="socio-tab-dados" class="socio-tab-content">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Dados pessoais</div><button class="btn btn-ghost btn-sm" onclick="editarSocio()" id="btn-editar-socio">Editar</button></div>
+            <div class="card-body" id="socio-dados-content"></div>
+          </div>
+        </div>
+
+        <!-- Tab: Vínculos -->
+        <div id="socio-tab-empresas" class="socio-tab-content" style="display:none">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Participação societária</div><button class="btn btn-primary btn-sm" onclick="openModalVinculo()">+ Adicionar vínculo</button></div>
+            <div class="table-wrap" id="socio-empresas-wrap"></div>
+          </div>
+        </div>
+
+        <!-- Tab: Inscrições estaduais -->
+        <div id="socio-tab-ie" class="socio-tab-content" style="display:none">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Inscrições estaduais — Produtor rural</div><button class="btn btn-primary btn-sm" onclick="openModalIE()">+ Adicionar IE</button></div>
+            <div class="table-wrap" id="socio-ie-wrap"></div>
+          </div>
+        </div>
+
+        <!-- Tab: Extrato -->
+        <div id="socio-tab-extrato" class="socio-tab-content" style="display:none">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Extrato bancário pessoal</div><button class="btn btn-primary btn-sm" onclick="openModalMovSocio()">+ Novo lançamento</button></div>
+            <div class="table-wrap" id="socio-extrato-wrap"></div>
+          </div>
+        </div>
+
+        <!-- Tab: Contas a pagar -->
+        <div id="socio-tab-pagar" class="socio-tab-content" style="display:none">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Contas a pagar</div><button class="btn btn-primary btn-sm" onclick="openModalPagarSocio()">+ Nova conta</button></div>
+            <div class="table-wrap" id="socio-pagar-wrap"></div>
+          </div>
+        </div>
+
+        <!-- Tab: Notas fiscais -->
+        <div id="socio-tab-nf" class="socio-tab-content" style="display:none">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Notas fiscais — Produtor rural</div><button class="btn btn-primary btn-sm" onclick="openModalNFSocio()">+ Upload XML</button></div>
+            <div class="table-wrap" id="socio-nf-wrap"></div>
+          </div>
+        </div>
+
+      </div>
     </div>
 
     <!-- PLANO DE CONTAS -->
@@ -1544,6 +1640,500 @@ function openModalNFe() {
 }
 
 // ============================================================
+// MÓDULO SÓCIOS PF
+// ============================================================
+let socioAtivo = null;
+let socioTabAtiva = 'dados';
+
+// ---- Render lista ----
+async function renderSocios() {
+  const search = document.getElementById('socios-search')?.value?.toLowerCase() || '';
+  const { data } = await sb.from('socios_pf').select('*, socios_empresas(count), socios_inscricoes_estaduais(count)').order('nome');
+  let socios = data || [];
+  if (search) socios = socios.filter(s => s.nome?.toLowerCase().includes(search) || s.cpf?.includes(search));
+
+  // Esconder detalhe se aberto
+  document.getElementById('socio-detalhe').style.display = 'none';
+  document.getElementById('socios-lista-card').style.display = 'block';
+
+  const wrap = document.getElementById('socios-wrap');
+  if (!socios.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">👤</div><p>Nenhum sócio cadastrado ainda.<br>Clique em "+ Novo sócio" para começar.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>E-mail</th><th>Vínculos</th><th>IEs</th><th>Status</th><th></th></tr></thead>
+    <tbody>${socios.map(s => `<tr>
+      <td style="font-weight:600">${s.nome}</td>
+      <td class="td-mono">${fmtCpf(s.cpf)}</td>
+      <td style="font-size:12px">${s.telefone || '--'}</td>
+      <td style="font-size:12px">${s.email || '--'}</td>
+      <td><span class="badge badge-gray">${s.socios_empresas?.[0]?.count || 0} empresas</span></td>
+      <td><span class="badge badge-gray">${s.socios_inscricoes_estaduais?.[0]?.count || 0} IEs</span></td>
+      <td>${s.ativo ? '<span class="badge badge-green">Ativo</span>' : '<span class="badge badge-gray">Inativo</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="abrirSocio('${s.id}')">Ver detalhes</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function fmtCpf(cpf) {
+  if (!cpf) return '--';
+  const c = cpf.replace(/\D/g, '');
+  if (c.length === 11) return c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  return cpf;
+}
+
+// ---- Abrir detalhe ----
+async function abrirSocio(id) {
+  socioAtivo = id;
+  document.getElementById('socios-lista-card').style.display = 'none';
+  document.getElementById('socio-detalhe').style.display = 'block';
+  showSocioTab('dados');
+}
+
+function fecharDetalhe() {
+  socioAtivo = null;
+  document.getElementById('socio-detalhe').style.display = 'none';
+  document.getElementById('socios-lista-card').style.display = 'block';
+}
+
+function showSocioTab(tab) {
+  socioTabAtiva = tab;
+  document.querySelectorAll('.socio-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.socio-tab-content').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-' + tab)?.classList.add('active');
+  document.getElementById('socio-tab-' + tab).style.display = 'block';
+
+  if (tab === 'dados')     carregarDadosSocio();
+  if (tab === 'empresas')  carregarVinculos();
+  if (tab === 'ie')        carregarIEs();
+  if (tab === 'extrato')   carregarExtratSocio();
+  if (tab === 'pagar')     carregarPagarSocio();
+  if (tab === 'nf')        carregarNFSocio();
+}
+
+async function carregarDadosSocio() {
+  const { data: s } = await sb.from('socios_pf').select('*').eq('id', socioAtivo).single();
+  if (!s) return;
+  document.getElementById('socio-detalhe-nome').textContent = s.nome;
+  document.getElementById('socio-dados-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      ${campo('Nome completo', s.nome)}
+      ${campo('CPF', fmtCpf(s.cpf))}
+      ${campo('RG', s.rg)}
+      ${campo('Data nascimento', s.data_nascimento ? fmtDate(s.data_nascimento) : '--')}
+      ${campo('Telefone', s.telefone)}
+      ${campo('E-mail', s.email)}
+      ${campo('Endereço', s.endereco, true)}
+      ${campo('Cidade', s.cidade)}
+      ${campo('Estado', s.estado)}
+      ${s.observacao ? campo('Observação', s.observacao, true) : ''}
+    </div>`;
+}
+
+function campo(label, valor, full) {
+  return `<div style="${full ? 'grid-column:span 3;' : ''}background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+    <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">${label}</div>
+    <div style="font-size:13px;font-weight:500">${valor || '--'}</div>
+  </div>`;
+}
+
+async function carregarVinculos() {
+  const { data } = await sb.from('socios_empresas').select('*, empresas(nome)').eq('socio_id', socioAtivo);
+  const wrap = document.getElementById('socio-empresas-wrap');
+  if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhum vínculo cadastrado.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Empresa</th><th>% Participação</th><th>Entrada</th><th>Saída</th><th>Status</th><th></th></tr></thead><tbody>${
+    data.map(v => `<tr>
+      <td>${v.empresas?.nome || '--'}</td>
+      <td class="td-mono">${v.percentual ? v.percentual + '%' : '--'}</td>
+      <td>${fmtDate(v.data_entrada)}</td>
+      <td>${fmtDate(v.data_saida) || '--'}</td>
+      <td>${v.ativo ? '<span class="badge badge-green">Ativo</span>' : '<span class="badge badge-gray">Inativo</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletarVinculo('${v.id}')">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function carregarIEs() {
+  const { data } = await sb.from('socios_inscricoes_estaduais').select('*, empresas(nome)').eq('socio_id', socioAtivo);
+  const wrap = document.getElementById('socio-ie-wrap');
+  if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhuma inscrição estadual cadastrada.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Fazenda / Empresa</th><th>Inscrição Estadual</th><th>Estado</th><th>Status</th><th></th></tr></thead><tbody>${
+    data.map(ie => `<tr>
+      <td>${ie.empresas?.nome || '--'}</td>
+      <td class="td-mono" style="font-weight:600">${ie.inscricao_estadual}</td>
+      <td>${ie.estado || '--'}</td>
+      <td>${ie.ativo ? '<span class="badge badge-green">Ativa</span>' : '<span class="badge badge-gray">Inativa</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletarIE('${ie.id}')">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function carregarExtratSocio() {
+  const { data } = await sb.from('socios_movimentacao').select('*').eq('socio_id', socioAtivo).order('data', {ascending:false});
+  const wrap = document.getElementById('socio-extrato-wrap');
+  if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhuma movimentação cadastrada.</p></div>'; return; }
+  const total_c = data.filter(r=>r.tipo==='credito').reduce((s,r)=>s+Number(r.valor),0);
+  const total_d = data.filter(r=>r.tipo==='debito').reduce((s,r)=>s+Number(r.valor),0);
+  wrap.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px;border-bottom:1px solid var(--border)">
+      <div style="background:var(--green-light);padding:10px;border-radius:var(--radius-sm)"><div style="font-size:10px;color:var(--green);font-weight:600;text-transform:uppercase">Receitas</div><div style="font-size:15px;font-weight:700;color:var(--green)">${fmt(total_c)}</div></div>
+      <div style="background:var(--red-light);padding:10px;border-radius:var(--radius-sm)"><div style="font-size:10px;color:var(--red);font-weight:600;text-transform:uppercase">Despesas</div><div style="font-size:15px;font-weight:700;color:var(--red)">${fmt(total_d)}</div></div>
+      <div style="background:var(--bg);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Saldo</div><div style="font-size:15px;font-weight:700">${fmt(total_c-total_d)}</div></div>
+    </div>
+    <table><thead><tr><th>Data</th><th>Tipo</th><th>Nome/Parte</th><th>Descrição</th><th>Banco</th><th>Valor</th></tr></thead><tbody>${
+    data.map(r=>`<tr>
+      <td>${fmtDate(r.data)}</td>
+      <td><span class="badge ${r.tipo==='credito'?'badge-green':'badge-red'}">${r.tipo==='credito'?'Crédito':'Débito'}</span></td>
+      <td style="font-weight:500">${r.nome_parte||'--'}</td>
+      <td style="color:var(--text2);font-size:12px">${r.descricao||'--'}</td>
+      <td style="font-size:11px;color:var(--text3)">${r.banco||'--'}</td>
+      <td class="td-mono" style="font-weight:600;color:${r.tipo==='credito'?'var(--green)':'var(--red)'}">${r.tipo==='credito'?'+':'-'}${fmt(r.valor)}</td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function carregarPagarSocio() {
+  const { data } = await sb.from('socios_contas_pagar').select('*').eq('socio_id', socioAtivo).order('vencimento');
+  const wrap = document.getElementById('socio-pagar-wrap');
+  if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhuma conta a pagar cadastrada.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Fornecedor</th><th>Nº Doc</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${
+    data.map(r=>`<tr>
+      <td style="font-weight:500">${r.fornecedor}</td>
+      <td class="td-mono">${r.numero_doc||'--'}</td>
+      <td>${fmtDate(r.vencimento)}</td>
+      <td class="td-mono">${fmt(r.valor)}</td>
+      <td>${badgeStatus(r.status)}</td>
+      <td>${r.status!=='pago'?`<button class="btn btn-ghost btn-sm" onclick="marcarPagoSocio('${r.id}')">✓ Pagar</button>`:''}</td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function marcarPagoSocio(id) {
+  await sb.from('socios_contas_pagar').update({status:'pago', pago_em: new Date().toISOString().slice(0,10)}).eq('id',id);
+  toast('Marcado como pago!', 'success');
+  carregarPagarSocio();
+}
+
+async function carregarNFSocio() {
+  const { data } = await sb.from('socios_notas_fiscais').select('*').eq('socio_id', socioAtivo).order('data_emissao', {ascending:false});
+  const wrap = document.getElementById('socio-nf-wrap');
+  if (!data?.length) { wrap.innerHTML = '<div class="empty"><p>Nenhuma nota fiscal cadastrada.</p></div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Tipo</th><th>Op.</th><th>Número</th><th>Data</th><th>Emitente</th><th>Destinatário</th><th>Valor</th><th>Status</th></tr></thead><tbody>${
+    data.map(n=>`<tr>
+      <td><span class="badge badge-gray">${n.tipo==='nf_produtor'?'NF Produtor':n.tipo}</span></td>
+      <td>${n.operacao==='emitida'?'<span class="badge badge-red">Emitida</span>':'<span class="badge badge-green">Recebida</span>'}</td>
+      <td class="td-mono">${n.numero||'--'}</td>
+      <td>${fmtDate(n.data_emissao)}</td>
+      <td style="font-size:12px">${n.nome_emitente||'--'}</td>
+      <td style="font-size:12px">${n.nome_destinatario||'--'}</td>
+      <td class="td-mono" style="font-weight:600">${fmt(n.valor_total)}</td>
+      <td><span class="badge badge-green">${n.status}</span></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function deletarVinculo(id) {
+  if (!confirm('Remover este vínculo?')) return;
+  await sb.from('socios_empresas').delete().eq('id', id);
+  toast('Vínculo removido!', 'success');
+  carregarVinculos();
+}
+async function deletarIE(id) {
+  if (!confirm('Remover esta inscrição estadual?')) return;
+  await sb.from('socios_inscricoes_estaduais').delete().eq('id', id);
+  toast('IE removida!', 'success');
+  carregarIEs();
+}
+
+// ---- Modais ----
+function openModalSocio(socio) {
+  const isEdit = !!socio;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal" style="width:560px">
+    <div class="modal-title">${isEdit ? 'Editar sócio' : 'Novo sócio PF'}</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nome completo *</label><input type="text" class="form-input" id="ms-nome" value="${socio?.nome||''}"></div>
+      <div class="form-group"><label class="form-label">CPF *</label><input type="text" class="form-input" id="ms-cpf" placeholder="000.000.000-00" value="${socio?.cpf||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">RG</label><input type="text" class="form-input" id="ms-rg" value="${socio?.rg||''}"></div>
+      <div class="form-group"><label class="form-label">Data nascimento</label><input type="date" class="form-input" id="ms-nasc" value="${socio?.data_nascimento||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Telefone</label><input type="text" class="form-input" id="ms-tel" value="${socio?.telefone||''}"></div>
+      <div class="form-group"><label class="form-label">E-mail</label><input type="email" class="form-input" id="ms-email" value="${socio?.email||''}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Endereço</label><input type="text" class="form-input" id="ms-end" value="${socio?.endereco||''}"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cidade</label><input type="text" class="form-input" id="ms-cidade" value="${socio?.cidade||''}"></div>
+      <div class="form-group"><label class="form-label">Estado</label><input type="text" class="form-input" id="ms-estado" maxlength="2" placeholder="SP" value="${socio?.estado||''}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Observação</label><textarea class="form-textarea" id="ms-obs">${socio?.observacao||''}</textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarSocio('${socio?.id||''}')">Salvar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+function editarSocio() {
+  sb.from('socios_pf').select('*').eq('id', socioAtivo).single().then(({data}) => {
+    if (data) openModalSocio(data);
+  });
+}
+
+async function salvarSocio(id) {
+  const obj = {
+    nome:            document.getElementById('ms-nome').value,
+    cpf:             document.getElementById('ms-cpf').value.replace(/\D/g,''),
+    rg:              document.getElementById('ms-rg').value,
+    data_nascimento: document.getElementById('ms-nasc').value || null,
+    telefone:        document.getElementById('ms-tel').value,
+    email:           document.getElementById('ms-email').value,
+    endereco:        document.getElementById('ms-end').value,
+    cidade:          document.getElementById('ms-cidade').value,
+    estado:          document.getElementById('ms-estado').value,
+    observacao:      document.getElementById('ms-obs').value,
+  };
+  if (!obj.nome) { toast('Nome é obrigatório', 'error'); return; }
+  const { error } = id
+    ? await sb.from('socios_pf').update(obj).eq('id', id)
+    : await sb.from('socios_pf').insert(obj);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast(id ? 'Sócio atualizado!' : 'Sócio cadastrado!', 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  if (id) carregarDadosSocio(); else await renderSocios();
+}
+
+function openModalVinculo() {
+  const empsOpts = empresas.map(e=>`<option value="${e.id}">${e.nome}</option>`).join('');
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-title">Adicionar vínculo societário</div>
+    <div class="form-group"><label class="form-label">Empresa *</label><select class="form-select" id="mv-empresa">${empsOpts}</select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">% Participação</label><input type="number" class="form-input" id="mv-pct" placeholder="Ex: 33.33" step="0.01" min="0" max="100"></div>
+      <div class="form-group"><label class="form-label">Data entrada</label><input type="date" class="form-input" id="mv-entrada"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarVinculo()">Salvar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function salvarVinculo() {
+  const obj = {
+    socio_id:    socioAtivo,
+    empresa_id:  document.getElementById('mv-empresa').value,
+    percentual:  parseFloat(document.getElementById('mv-pct').value) || null,
+    data_entrada: document.getElementById('mv-entrada').value || null,
+    ativo: true,
+  };
+  const { error } = await sb.from('socios_empresas').insert(obj);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast('Vínculo adicionado!', 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  carregarVinculos();
+}
+
+function openModalIE() {
+  const empsOpts = empresas.map(e=>`<option value="${e.id}">${e.nome}</option>`).join('');
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-title">Adicionar inscrição estadual</div>
+    <div class="form-group"><label class="form-label">Fazenda / Empresa *</label><select class="form-select" id="mie-empresa">${empsOpts}</select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Inscrição Estadual *</label><input type="text" class="form-input" id="mie-ie" placeholder="Ex: 123456789.0001-01"></div>
+      <div class="form-group"><label class="form-label">Estado</label><input type="text" class="form-input" id="mie-estado" maxlength="2" placeholder="SP"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay')?.remove()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarIE()">Salvar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function salvarIE() {
+  const obj = {
+    socio_id:           socioAtivo,
+    empresa_id:         document.getElementById('mie-empresa').value,
+    inscricao_estadual: document.getElementById('mie-ie').value,
+    estado:             document.getElementById('mie-estado').value,
+    ativo: true,
+  };
+  if (!obj.inscricao_estadual) { toast('IE é obrigatória', 'error'); return; }
+  const { error } = await sb.from('socios_inscricoes_estaduais').insert(obj);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast('IE cadastrada!', 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  carregarIEs();
+}
+
+function openModalMovSocio() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-title">Novo lançamento — Extrato PF</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Data *</label><input type="date" class="form-input" id="mm-data" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="form-group"><label class="form-label">Tipo *</label><select class="form-select" id="mm-tipo"><option value="credito">Crédito</option><option value="debito">Débito</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Nome (parte)</label><input type="text" class="form-input" id="mm-nome" placeholder="Cliente, fornecedor ou serviço"></div>
+    <div class="form-group"><label class="form-label">Descrição</label><input type="text" class="form-input" id="mm-desc"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Valor *</label><input type="number" class="form-input" id="mm-valor" step="0.01"></div>
+      <div class="form-group"><label class="form-label">Banco</label><input type="text" class="form-input" id="mm-banco"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay')?.remove()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarMovSocio()">Salvar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function salvarMovSocio() {
+  const tipo = document.getElementById('mm-tipo').value;
+  const obj = {
+    socio_id:   socioAtivo,
+    data:       document.getElementById('mm-data').value,
+    tipo,
+    natureza:   tipo === 'credito' ? 'receita' : 'despesa',
+    valor:      parseFloat(document.getElementById('mm-valor').value) || 0,
+    nome_parte: document.getElementById('mm-nome').value,
+    descricao:  document.getElementById('mm-desc').value,
+    banco:      document.getElementById('mm-banco').value,
+    conciliado: true,
+  };
+  if (!obj.valor) { toast('Informe o valor', 'error'); return; }
+  const { error } = await sb.from('socios_movimentacao').insert(obj);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast('Lançamento salvo!', 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  carregarExtratSocio();
+}
+
+function openModalPagarSocio() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-title">Nova conta a pagar — PF</div>
+    <div class="form-group"><label class="form-label">Fornecedor *</label><input type="text" class="form-input" id="mp-forn"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nº Documento</label><input type="text" class="form-input" id="mp-doc"></div>
+      <div class="form-group"><label class="form-label">Valor *</label><input type="number" class="form-input" id="mp-valor" step="0.01"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Vencimento *</label><input type="date" class="form-input" id="mp-venc" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label class="form-label">Observação</label><textarea class="form-textarea" id="mp-obs"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay')?.remove()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarPagarSocio()">Salvar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function salvarPagarSocio() {
+  const obj = {
+    socio_id:   socioAtivo,
+    fornecedor: document.getElementById('mp-forn').value,
+    numero_doc: document.getElementById('mp-doc').value,
+    valor:      parseFloat(document.getElementById('mp-valor').value) || 0,
+    vencimento: document.getElementById('mp-venc').value,
+    observacao: document.getElementById('mp-obs').value,
+    status:     'pendente',
+  };
+  if (!obj.fornecedor || !obj.valor) { toast('Preencha os campos obrigatórios', 'error'); return; }
+  const { error } = await sb.from('socios_contas_pagar').insert(obj);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast('Conta salva!', 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  carregarPagarSocio();
+}
+
+function openModalNFSocio() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-title">Upload XML — NF Produtor Rural</div>
+    <div class="form-group"><label class="form-label">Operação</label>
+      <select class="form-select" id="mnf-op"><option value="emitida">Emitida</option><option value="recebida">Recebida</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Arquivo XML</label>
+      <div onclick="document.getElementById('mnf-file').click()" style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;background:var(--bg)">
+        <div style="font-size:24px">📄</div>
+        <div style="font-size:13px;font-weight:500;margin-top:6px">Clique ou arraste o XML</div>
+      </div>
+      <input type="file" id="mnf-file" accept=".xml" style="display:none" onchange="previewNFSocio(this)">
+    </div>
+    <div id="mnf-preview" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay')?.remove()">Cancelar</button>
+      <button class="btn btn-primary" id="mnf-btn" onclick="salvarNFSocio()" style="display:none">Importar</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+let nfSocioData = null;
+async function previewNFSocio(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const xml = await file.text();
+  const nota = parseXmlNFe(xml);
+  nfSocioData = { ...nota, xml_raw: xml };
+  document.getElementById('mnf-preview').innerHTML = `
+    <div style="background:var(--bg);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+      <div><strong>Emitente:</strong> ${nota.nome_emitente || '--'}</div>
+      <div><strong>Destinatário:</strong> ${nota.nome_destinatario || '--'}</div>
+      <div><strong>Valor:</strong> ${fmt(nota.valor_total)}</div>
+      <div><strong>Data:</strong> ${fmtDate(nota.data_emissao)}</div>
+    </div>`;
+  document.getElementById('mnf-btn').style.display = '';
+}
+
+async function salvarNFSocio() {
+  if (!nfSocioData) return;
+  const op = document.getElementById('mnf-op').value;
+  const obj = {
+    socio_id: socioAtivo,
+    tipo: nfSocioData.tipo || 'nf_produtor',
+    operacao: op,
+    chave_acesso: nfSocioData.chave_acesso || null,
+    numero: nfSocioData.numero,
+    serie: nfSocioData.serie,
+    data_emissao: nfSocioData.data_emissao,
+    cnpj_cpf_emitente: nfSocioData.cnpj_emitente,
+    nome_emitente: nfSocioData.nome_emitente,
+    cnpj_cpf_destinatario: nfSocioData.cnpj_destinatario,
+    nome_destinatario: nfSocioData.nome_destinatario,
+    valor_total: nfSocioData.valor_total,
+    natureza_operacao: nfSocioData.natureza_operacao,
+    status: 'ativa',
+    xml_raw: nfSocioData.xml_raw,
+  };
+  const { error } = await sb.from('socios_notas_fiscais').insert(obj);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast('Nota importada!', 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  carregarNFSocio();
+}
+
+// ============================================================
 // SIDEBAR TOGGLE (responsivo)
 // ============================================================
 function toggleSidebar() {
@@ -1728,6 +2318,7 @@ async function navigate(page) {
   const acts = {
     extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}],
     nfe:    [{label:'+ Upload XML', cls:'btn-primary', fn:'openModalNFe()'}],
+    socios: [{label:'+ Novo sócio', cls:'btn-primary', fn:'openModalSocio()'}],
     pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
     receber: [{label:'+ Nova conta a receber', cls:'btn-primary', fn:'openModal("modal-receber")'}],
   };
