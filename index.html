@@ -92,6 +92,18 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   color: rgba(255,255,255,0.5); cursor: pointer; transition: all .1s;
   display: flex; align-items: center; gap: 7px; margin: 1px 0;
 }
+.sidebar-section-label {
+  font-size: 8.5px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.25);
+  padding: 8px 14px 2px; margin-top: 4px;
+}
+.emp-item-sub {
+  padding: 3px 10px 3px 26px; border-radius: var(--radius-sm); font-size: 11px;
+  color: rgba(255,255,255,0.35); cursor: pointer; transition: all .1s;
+  display: flex; align-items: center; gap: 6px; margin: 1px 0;
+}
+.emp-item-sub:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6); }
+.emp-item-sub.active { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
 .emp-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8); }
 .emp-item.active { background: rgba(255,255,255,0.12); color: #F5C5A3; }
 .emp-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
@@ -305,6 +317,7 @@ tr:hover td { background: var(--bg); }
   </div>
 
   
+  <div class="emp-list" id="pf-list"></div>
   <div class="emp-list" id="emp-list"></div>
 
   <nav class="nav">
@@ -2509,6 +2522,9 @@ async function init() {
 async function iniciarApp() {
   const { data: { user } } = await sb.auth.getUser();
   if (user) document.getElementById('user-email-display').textContent = user.email;
+  // Pré-carregar sócios para sidebar
+  const { data: socios } = await sb.from('socios_pf').select('*, socios_inscricoes_estaduais(id, inscricao_estadual, empresas(nome))').order('nome');
+  window._socios = socios || [];
   await carregarGrupos();
   await carregarEmpresas();
   await carregarPlanos();
@@ -2535,29 +2551,132 @@ async function carregarPlanos() {
 // ============================================================
 // SIDEBAR
 // ============================================================
+// Estado do contexto ativo
+let contextoTipo = 'empresa'; // 'empresa' ou 'pf'
+let pfAtivo = null; // id do sócio PF ativo
+let pfIeAtiva = null; // id da IE ativa
+let pfExpandido = {}; // controle de expansão por PF
+let grupoExpandido = {}; // controle de expansão por grupo
+
 function renderSidebar() {
-  // Atualizar topbar grupo
+  // Atualizar topbar
   const grp = grupos.find(g=>g.id===grupoAtivo);
   const nomeEl = document.getElementById('topbar-grupo-nome');
-  if (nomeEl) nomeEl.textContent = grp?.nome || '--';
+  if (nomeEl) {
+    if (contextoTipo === 'pf' && pfAtivo) {
+      const socio = window._socios?.find(s=>s.id===pfAtivo);
+      nomeEl.textContent = socio?.nome?.split(' ').slice(0,2).join(' ') || 'Sócio PF';
+    } else {
+      nomeEl.textContent = grp?.nome || '--';
+    }
+  }
 
-  // Dropdown topbar
+  // Dropdown topbar atualizado
   const ddTopbar = document.getElementById('grp-dd-topbar');
   if (ddTopbar) {
-    ddTopbar.innerHTML = grupos.map(g=>`
-      <div onclick="selectGrupo('${g.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--border);${g.id===grupoAtivo?'background:var(--wine-light)':''}" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='${g.id===grupoAtivo?'var(--wine-light)':'transparent'}'">
-        <div style="width:9px;height:9px;border-radius:50%;background:${g.slug==='figueiredo'?'var(--wine)':'var(--green)'};flex-shrink:0"></div>
-        <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${g.nome}</div>
-          <div style="font-size:11px;color:var(--text3)">${empresas.filter(e=>e.grupo_id===g.id).length} unidades</div>
-        </div>
-        ${g.id===grupoAtivo?'<svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;color:var(--wine);margin-left:auto"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
-      </div>`).join('') +
-      `<div style="padding:8px 14px">
-        <div style="font-size:10px;color:var(--text3);text-align:center">Clique para trocar de grupo</div>
-      </div>`;
+    const socios = window._socios || [];
+    ddTopbar.innerHTML = 
+      `<div style="padding:6px 14px 4px;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">Pessoas Físicas</div>` +
+      socios.map(s=>`
+        <div onclick="selectContextoPF('${s.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--border);${pfAtivo===s.id&&contextoTipo==='pf'?'background:var(--wine-light)':''}" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='${pfAtivo===s.id&&contextoTipo==='pf'?'var(--wine-light)':'transparent'}'">
+          <div style="width:9px;height:9px;border-radius:50%;background:#8B6914;flex-shrink:0"></div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.nome?.split(' ').slice(0,2).join(' ')}</div>
+          ${pfAtivo===s.id&&contextoTipo==='pf'?'<svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;color:var(--wine);margin-left:auto"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+        </div>`).join('') +
+      `<div style="padding:6px 14px 4px;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);border-top:1px solid var(--border);margin-top:4px">Empresas</div>` +
+      grupos.map(g=>`
+        <div onclick="selectContextoEmpresa('${g.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--border);${grupoAtivo===g.id&&contextoTipo==='empresa'?'background:var(--wine-light)':''}" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='${grupoAtivo===g.id&&contextoTipo==='empresa'?'var(--wine-light)':'transparent'}'">
+          <div style="width:9px;height:9px;border-radius:50%;background:${g.slug==='figueiredo'?'var(--wine)':'var(--green)'};flex-shrink:0"></div>
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text)">${g.nome.replace(' e Cia Ltda','').replace(' Agropecuária Ltda','')}</div>
+            <div style="font-size:10px;color:var(--text3)">${empresas.filter(e=>e.grupo_id===g.id).length} unidades</div>
+          </div>
+          ${grupoAtivo===g.id&&contextoTipo==='empresa'?'<svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;color:var(--wine);margin-left:auto"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+        </div>`).join('') +
+      `<div style="padding:8px 14px"><div style="font-size:10px;color:var(--text3);text-align:center">Selecione para alternar contexto</div></div>`;
   }
+
   renderEmpList();
+  renderPFList();
+}
+
+async function selectContextoPF(id) {
+  contextoTipo = 'pf';
+  pfAtivo = id;
+  empresaAtiva = null;
+  document.getElementById('grp-dd-topbar').style.display = 'none';
+  renderSidebar();
+  atualizarMenuContexto();
+  // Navegar para sócios
+  await navigate('socios');
+  // Abrir direto no sócio
+  setTimeout(() => abrirSocio(id), 300);
+}
+
+async function selectContextoEmpresa(gid) {
+  contextoTipo = 'empresa';
+  grupoAtivo = gid;
+  pfAtivo = null;
+  empresaAtiva = null;
+  document.getElementById('grp-dd-topbar').style.display = 'none';
+  renderSidebar();
+  atualizarMenuContexto();
+  await renderPage(paginaAtiva === 'socios' ? 'dashboard' : paginaAtiva);
+}
+
+function atualizarMenuContexto() {
+  // Atualizar visibilidade dos menus conforme contexto
+  const menuFinanceiroEmp = document.getElementById('menu-financeiro-emp');
+  const menuFinanceiroPF = document.getElementById('menu-financeiro-pf');
+  if (menuFinanceiroEmp) menuFinanceiroEmp.style.display = contextoTipo === 'empresa' ? 'block' : 'none';
+  if (menuFinanceiroPF) menuFinanceiroPF.style.display = contextoTipo === 'pf' ? 'block' : 'none';
+}
+
+async function renderPFList() {
+  const pfList = document.getElementById('pf-list');
+  if (!pfList) return;
+
+  // Buscar sócios se ainda não tiver
+  if (!window._socios) {
+    const { data } = await sb.from('socios_pf').select('*, socios_inscricoes_estaduais(id, inscricao_estadual, empresas(nome))').order('nome');
+    window._socios = data || [];
+  }
+  const socios = window._socios;
+  if (!socios.length) { pfList.innerHTML = ''; return; }
+
+  pfList.innerHTML = `
+    <div class="sidebar-section-label">Pessoas Físicas</div>
+    ${socios.map(s => `
+      <div class="emp-item ${pfAtivo===s.id&&contextoTipo==='pf'?'active':''}" onclick="togglePFExpand('${s.id}')">
+        <span style="font-size:10px">👤</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nome?.split(' ').slice(0,2).join(' ')}</span>
+        <span style="font-size:10px;color:rgba(255,255,255,0.3)">${pfExpandido[s.id] ? '▲' : '▼'}</span>
+      </div>
+      ${pfExpandido[s.id] ? (s.socios_inscricoes_estaduais?.map(ie=>`
+        <div class="emp-item-sub ${pfIeAtiva===ie.id?'active':''}" onclick="selectPFIE('${s.id}', '${ie.id}')">
+          <span style="font-size:9px">📋</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ie.empresas?.nome?.replace('Fazenda ','') || ie.inscricao_estadual}</span>
+        </div>`).join('') || '') : ''}
+    `).join('')}
+    <div class="sidebar-section-label" style="margin-top:4px">Empresas</div>`;
+}
+
+async function togglePFExpand(id) {
+  pfExpandido[id] = !pfExpandido[id];
+  if (!pfExpandido[id]) {
+    // Colapsou — só atualizar visual
+    renderPFList();
+    return;
+  }
+  // Expandiu — selecionar PF e abrir
+  await selectContextoPF(id);
+}
+
+function selectPFIE(socioId, ieId) {
+  pfAtivo = socioId;
+  pfIeAtiva = ieId;
+  contextoTipo = 'pf';
+  renderPFList();
 }
 function renderEmpList() {
   const emps = empresas.filter(e=>e.grupo_id===grupoAtivo);
