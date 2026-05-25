@@ -2604,13 +2604,27 @@ async function selectContextoPF(id) {
   contextoTipo = 'pf';
   pfAtivo = id;
   empresaAtiva = null;
-  document.getElementById('grp-dd-topbar').style.display = 'none';
-  renderSidebar();
-  atualizarMenuContexto();
-  // Navegar para sócios
-  await navigate('socios');
-  // Abrir direto no sócio
-  setTimeout(() => abrirSocio(id), 300);
+  const dd = document.getElementById('grp-dd-topbar');
+  if (dd) dd.style.display = 'none';
+
+  // Atualizar topbar nome
+  const socio = window._socios?.find(s=>s.id===id);
+  const nomeEl = document.getElementById('topbar-grupo-nome');
+  if (nomeEl && socio) nomeEl.textContent = socio.nome?.split(' ').slice(0,2).join(' ');
+
+  renderEmpList();
+  await renderPFList();
+
+  // Navegar para sócios e abrir ficha
+  paginaAtiva = 'socios';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-socios')?.classList.add('active');
+  document.getElementById('page-title').textContent = 'Sócios PF';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'socios'")) n.classList.add('active'); });
+
+  // Abrir ficha do sócio diretamente
+  await abrirSocio(id);
 }
 
 async function selectContextoEmpresa(gid) {
@@ -2662,14 +2676,14 @@ async function renderPFList() {
 }
 
 async function togglePFExpand(id) {
+  // Fechar outros expandidos
+  Object.keys(pfExpandido).forEach(k => { if(k !== id) pfExpandido[k] = false; });
   pfExpandido[id] = !pfExpandido[id];
-  if (!pfExpandido[id]) {
-    // Colapsou — só atualizar visual
-    renderPFList();
-    return;
+  await renderPFList();
+  // Se expandiu, selecionar contexto PF
+  if (pfExpandido[id]) {
+    await selectContextoPF(id);
   }
-  // Expandiu — selecionar PF e abrir
-  await selectContextoPF(id);
 }
 
 function selectPFIE(socioId, ieId) {
