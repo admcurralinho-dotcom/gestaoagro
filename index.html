@@ -46,10 +46,19 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .sidebar {
   position: fixed; left: 0; top: 0; width: var(--sidebar); height: 100vh;
   background: var(--wine); display: flex; flex-direction: column; z-index: 100;
-  overflow-y: auto; min-width: 200px;
+  overflow: hidden; min-width: 200px;
 }
-.sidebar::-webkit-scrollbar { width: 3px; }
-.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.sidebar-logo {
+  flex-shrink: 0;
+}
+.sidebar-scroll {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 3px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.sidebar-footer {
+  flex-shrink: 0;
+}
 
 .sidebar-logo {
   padding: 6px 12px 8px;
@@ -349,6 +358,7 @@ tr:hover td { background: var(--bg); }
   </div>
 
   
+  <div class="sidebar-scroll">
   <div class="emp-list" id="pf-list"></div>
   <div class="emp-list" id="emp-list"></div>
 
@@ -412,6 +422,7 @@ tr:hover td { background: var(--bg); }
     </div>
   </nav>
 
+  </div><!-- fim sidebar-scroll -->
   <div class="sidebar-footer" style="padding:8px 14px;">
     <strong id="user-email-display" style="color:rgba(255,255,255,0.6);font-size:10px;font-weight:500;display:block;margin-bottom:4px">Carregando...</strong>
     <button onclick="fazerLogout()" style="width:100%;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.45);border-radius:6px;padding:6px;font-size:11px;cursor:pointer;font-family:var(--font);letter-spacing:0.03em;transition:all .15s" onmouseover="this.style.background='rgba(0,0,0,0.3)'" onmouseout="this.style.background='rgba(0,0,0,0.2)'">Sair do sistema</button>
