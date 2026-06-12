@@ -804,7 +804,7 @@ tr:hover td { background: var(--bg); }
         <!-- Tab: Extrato -->
         <div id="socio-tab-extrato" class="socio-tab-content" style="display:none">
           <div class="card">
-            <div class="card-header"><div class="card-title">Extrato bancário pessoal</div><button class="btn btn-primary btn-sm" onclick="openModalMovSocio()">+ Novo lançamento</button></div>
+            <div class="card-header"><div class="card-title">Extrato bancário pessoal</div><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="openModalImportCSVSocio()">↑ Importar CSV</button><button class="btn btn-primary btn-sm" onclick="openModalMovSocio()">+ Novo lançamento</button></div></div>
             <div class="table-wrap" id="socio-extrato-wrap"></div>
           </div>
         </div>
@@ -892,6 +892,49 @@ tr:hover td { background: var(--bg); }
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModals()">Fechar</button>
       <button class="btn btn-primary" id="nfe-upload-btn" onclick="processarXmls()" style="display:none">Importar notas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: IMPORTAR CSV BANCÁRIO -->
+<div class="modal-overlay" id="modal-import-csv">
+  <div class="modal" style="width:580px">
+    <div class="modal-title">Importar Extrato — CSV Bancário</div>
+    <div class="alert alert-warn" style="margin-bottom:16px">
+      Suporta Banco do Brasil, Bradesco e Next. Lançamentos duplicados são ignorados automaticamente.
+    </div>
+    <div class="form-group">
+      <label class="form-label">Banco *</label>
+      <select class="form-select" id="csv-banco">
+        <option value="bb">Banco do Brasil</option>
+        <option value="bradesco">Bradesco</option>
+        <option value="next">Next (Bradesco)</option>
+        <option value="outro">Outro (formato genérico)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Arquivo CSV *</label>
+      <div id="csv-dropzone" onclick="document.getElementById('csv-file-input').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--wine)'"
+        ondragleave="this.style.borderColor='var(--border2)'"
+        ondrop="event.preventDefault();handleCSVDrop(event)"
+        style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:28px;text-align:center;cursor:pointer;background:var(--bg);transition:border-color .15s">
+        <div style="font-size:28px;margin-bottom:8px">📊</div>
+        <div style="font-size:13px;font-weight:500">Arraste o CSV aqui ou clique para selecionar</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Arquivo .csv ou .txt</div>
+      </div>
+      <input type="file" id="csv-file-input" accept=".csv,.txt" style="display:none" onchange="handleCSVFile(this.files[0])">
+    </div>
+    <div id="csv-preview" style="margin-top:10px"></div>
+    <div id="csv-progress" style="display:none;margin-top:12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px" id="csv-progress-text">Importando...</div>
+      <div style="background:var(--border);border-radius:4px;height:6px">
+        <div id="csv-progress-bar" style="background:var(--wine);height:6px;border-radius:4px;width:0%;transition:width .3s"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModals()">Fechar</button>
+      <button class="btn btn-primary" id="csv-import-btn" onclick="importarCSV()" style="display:none">Importar lançamentos</button>
     </div>
   </div>
 </div>
@@ -2646,6 +2689,301 @@ function voltarHome() {
 }
 
 // ============================================================
+// IMPORTADOR CSV BANCÁRIO
+// ============================================================
+let csvLinhasParsed = [];
+
+function handleCSVDrop(event) {
+  const file = event.dataTransfer.files[0];
+  if (file) handleCSVFile(file);
+}
+
+async function handleCSVFile(file) {
+  if (!file) return;
+  const text = await file.text();
+  const banco = document.getElementById('csv-banco').value;
+  csvLinhasParsed = parseCSVBancario(text, banco);
+  renderCSVPreview(csvLinhasParsed);
+}
+
+function parseCSVBancario(text, banco) {
+  const linhas = text.split('\n').map(l => l.trim()).filter(l => l);
+  const resultado = [];
+
+  // Detectar separador
+  const sep = linhas[0]?.includes(';') ? ';' : ',';
+
+  // Pular cabeçalho
+  const inicio = linhas.findIndex(l => {
+    const lower = l.toLowerCase();
+    return lower.includes('data') && (lower.includes('valor') || lower.includes('lançamento'));
+  });
+
+  for (let i = (inicio >= 0 ? inicio + 1 : 1); i < linhas.length; i++) {
+    const linha = linhas[i];
+    if (!linha) continue;
+
+    // Parse CSV respeitando aspas
+    const cols = parseCSVLinha(linha, sep);
+    if (cols.length < 3) continue;
+
+    let data, lancamento, detalhes, ndoc, valor, tipo;
+
+    if (banco === 'bb') {
+      // BB: Data,"Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento"
+      data      = cols[0]?.trim();
+      lancamento = cols[1]?.replace(/^"|"$/g,'').trim();
+      detalhes  = cols[2]?.replace(/^"|"$/g,'').trim();
+      ndoc      = cols[3]?.replace(/^"|"$/g,'').trim();
+      valor     = cols[4]?.replace(/^"|"$/g,'').trim();
+      tipo      = cols[5]?.replace(/^"|"$/g,'').trim();
+    } else {
+      // Genérico
+      data      = cols[0]?.trim();
+      lancamento = cols[1]?.replace(/^"|"$/g,'').trim();
+      detalhes  = cols[2]?.replace(/^"|"$/g,'').trim() || '';
+      ndoc      = cols[3]?.replace(/^"|"$/g,'').trim() || '';
+      valor     = cols[4]?.replace(/^"|"$/g,'').trim() || cols[2]?.trim();
+      tipo      = cols[5]?.replace(/^"|"$/g,'').trim() || (parseValor(valor) >= 0 ? 'Entrada' : 'Saída');
+    }
+
+    // Filtrar linhas inválidas
+    if (!data || !lancamento) continue;
+    if (data === '00/00/0000') continue;
+    if (lancamento.includes('Saldo') || lancamento.includes('SALDO')) continue;
+
+    // Parse data DD/MM/YYYY
+    const dataISO = parseDateBR(data);
+    if (!dataISO) continue;
+
+    // Parse valor
+    const valorNum = parseValor(valor);
+    if (valorNum === null) continue;
+
+    const tipoLower = tipo?.toLowerCase() || '';
+    const tipoSistema = tipoLower.includes('entrada') || valorNum > 0 ? 'credito' : 'debito';
+    const valorAbs = Math.abs(valorNum);
+
+    resultado.push({
+      data: dataISO,
+      tipo: tipoSistema,
+      natureza: tipoSistema === 'credito' ? 'receita' : 'despesa',
+      nome_parte: lancamento,
+      descricao: detalhes || lancamento,
+      numero_doc: ndoc || null,
+      valor: valorAbs,
+      banco: banco.toUpperCase(),
+      conciliado: false,
+    });
+  }
+  return resultado;
+}
+
+function parseCSVLinha(linha, sep) {
+  const resultado = [];
+  let atual = '';
+  let dentro = false;
+  for (let i = 0; i < linha.length; i++) {
+    const c = linha[i];
+    if (c === '"') {
+      dentro = !dentro;
+    } else if (c === sep && !dentro) {
+      resultado.push(atual);
+      atual = '';
+    } else {
+      atual += c;
+    }
+  }
+  resultado.push(atual);
+  return resultado;
+}
+
+function parseDateBR(str) {
+  if (!str) return null;
+  const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function parseValor(str) {
+  if (!str) return null;
+  // Remove aspas e espaços
+  let s = str.replace(/"/g,'').trim();
+  if (!s || s === '0,00' || s === '') return 0;
+  // Formato BR: 1.234,56 ou -1.234,56
+  s = s.replace(/\./g,'').replace(',','.');
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+function renderCSVPreview(linhas) {
+  const prev = document.getElementById('csv-preview');
+  if (!linhas.length) {
+    prev.innerHTML = '<div class="alert" style="color:var(--red)">Nenhum lançamento encontrado. Verifique o formato do arquivo.</div>';
+    document.getElementById('csv-import-btn').style.display = 'none';
+    return;
+  }
+
+  const creditos = linhas.filter(l => l.tipo === 'credito');
+  const debitos  = linhas.filter(l => l.tipo === 'debito');
+  const totalC   = creditos.reduce((s,l) => s + l.valor, 0);
+  const totalD   = debitos.reduce((s,l) => s + l.valor, 0);
+
+  prev.innerHTML = `
+    <div style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Resumo do arquivo</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px">
+        <div><span style="color:var(--text3)">Total lançamentos:</span> <strong>${linhas.length}</strong></div>
+        <div><span style="color:var(--green)">Entradas:</span> <strong>${fmt(totalC)}</strong></div>
+        <div><span style="color:var(--red)">Saídas:</span> <strong>${fmt(totalD)}</strong></div>
+      </div>
+    </div>
+    <div class="table-wrap" style="max-height:200px;overflow-y:auto">
+      <table>
+        <thead><tr><th>Data</th><th>Lançamento</th><th>Valor</th><th>Tipo</th></tr></thead>
+        <tbody>
+          ${linhas.slice(0,10).map(l => `<tr>
+            <td>${fmtDate(l.data)}</td>
+            <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.nome_parte}</td>
+            <td class="td-mono" style="color:${l.tipo==='credito'?'var(--green)':'var(--red)'}">${l.tipo==='credito'?'+':'-'}${fmt(l.valor)}</td>
+            <td><span class="badge ${l.tipo==='credito'?'badge-green':'badge-red'}">${l.tipo==='credito'?'Crédito':'Débito'}</span></td>
+          </tr>`).join('')}
+          ${linhas.length > 10 ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);font-size:11px">... e mais ${linhas.length - 10} lançamentos</td></tr>` : ''}
+        </tbody>
+      </table>
+    </div>`;
+  document.getElementById('csv-import-btn').style.display = '';
+}
+
+async function importarCSVSocio() {
+  const btn = document.getElementById('csv-import-btn');
+  let importados = 0, duplicados = 0, erros = 0;
+  const total = csvLinhasParsed.length;
+
+  const { data: existing } = await sb.from('socios_movimentacao')
+    .select('data, valor, numero_doc, nome_parte')
+    .eq('socio_id', socioAtivo);
+
+  const existingSet = new Set(
+    (existing || []).map(e => `${e.data}|${e.valor}|${e.numero_doc||''}|${e.nome_parte||''}`)
+  );
+
+  for (let i = 0; i < csvLinhasParsed.length; i++) {
+    const l = csvLinhasParsed[i];
+    const pct = Math.round(((i+1)/total)*100);
+    document.getElementById('csv-progress-bar').style.width = pct + '%';
+    document.getElementById('csv-progress-text').textContent = `Importando ${i+1}/${total}...`;
+
+    const key = `${l.data}|${l.valor}|${l.numero_doc||''}|${l.nome_parte||''}`;
+    if (existingSet.has(key)) { duplicados++; continue; }
+
+    const { error } = await sb.from('socios_movimentacao').insert({
+      socio_id: socioAtivo,
+      data: l.data,
+      tipo: l.tipo,
+      natureza: l.natureza,
+      valor: l.valor,
+      nome_parte: l.nome_parte,
+      descricao: l.descricao,
+      banco: l.banco,
+      numero_doc: l.numero_doc,
+      conciliado: false,
+    });
+
+    if (error) { erros++; }
+    else { importados++; existingSet.add(key); }
+  }
+
+  document.getElementById('csv-progress-bar').style.width = '100%';
+  document.getElementById('csv-progress-text').textContent =
+    `Concluído! ${importados} importados · ${duplicados} duplicados · ${erros} erros`;
+
+  document.getElementById('csv-import-btn').disabled = false;
+  document.getElementById('csv-import-btn').textContent = 'Importar lançamentos';
+  toast(`${importados} lançamento(s) importado(s)!`, 'success');
+  closeModals();
+  carregarExtratSocio();
+}
+
+async function openModalImportCSV() {
+  csvLinhasParsed = [];
+  document.getElementById('csv-preview').innerHTML = '';
+  document.getElementById('csv-import-btn').style.display = 'none';
+  document.getElementById('csv-progress').style.display = 'none';
+  document.getElementById('csv-progress-bar').style.width = '0%';
+  document.getElementById('modal-import-csv').classList.add('open');
+}
+
+async function importarCSV() {
+  if (!csvLinhasParsed.length) return;
+
+  const btn = document.getElementById('csv-import-btn');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+  document.getElementById('csv-progress').style.display = 'block';
+
+  // Verificar se é para sócio PF ou empresa
+  if (window._csvDestinoSocio && socioAtivo) {
+    await importarCSVSocio();
+    window._csvDestinoSocio = false;
+    return;
+  }
+  window._csvDestinoSocio = false;
+
+  // Determinar empresa ativa
+  const empId = empresaAtiva || empresas.find(e => e.grupo_id === grupoAtivo && e.is_matriz)?.id;
+  if (!empId) { toast('Selecione uma empresa primeiro', 'error'); btn.disabled = false; return; }
+
+  let importados = 0, duplicados = 0, erros = 0;
+  const total = csvLinhasParsed.length;
+
+  // Buscar lançamentos existentes para evitar duplicatas
+  const { data: existing } = await sb.from('movimentacao_bancaria')
+    .select('data, valor, numero_doc, nome_parte')
+    .eq('empresa_id', empId);
+
+  const existingSet = new Set(
+    (existing || []).map(e => `${e.data}|${e.valor}|${e.numero_doc||''}|${e.nome_parte||''}`)
+  );
+
+  for (let i = 0; i < csvLinhasParsed.length; i++) {
+    const l = csvLinhasParsed[i];
+    const pct = Math.round(((i+1)/total)*100);
+    document.getElementById('csv-progress-bar').style.width = pct + '%';
+    document.getElementById('csv-progress-text').textContent = `Importando ${i+1}/${total}...`;
+
+    // Verificar duplicata
+    const key = `${l.data}|${l.valor}|${l.numero_doc||''}|${l.nome_parte||''}`;
+    if (existingSet.has(key)) { duplicados++; continue; }
+
+    const { error } = await sb.from('movimentacao_bancaria').insert({
+      empresa_id: empId,
+      data: l.data,
+      tipo: l.tipo,
+      natureza: l.natureza,
+      valor: l.valor,
+      nome_parte: l.nome_parte,
+      descricao: l.descricao,
+      banco: l.banco,
+      numero_doc: l.numero_doc,
+      conciliado: false,
+    });
+
+    if (error) { erros++; console.error(error); }
+    else { importados++; existingSet.add(key); }
+  }
+
+  document.getElementById('csv-progress-bar').style.width = '100%';
+  document.getElementById('csv-progress-text').textContent =
+    `Concluído! ${importados} importados · ${duplicados} duplicados · ${erros} erros`;
+
+  btn.disabled = false;
+  btn.textContent = 'Importar lançamentos';
+  toast(`${importados} lançamento(s) importado(s)!${duplicados > 0 ? ' ' + duplicados + ' já existiam.' : ''}`, 'success');
+  await renderExtrato();
+}
+
+// ============================================================
 // SIDEBAR TOGGLE (responsivo)
 // ============================================================
 function toggleSidebar() {
@@ -2948,7 +3286,7 @@ async function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
   // Topbar actions
   const acts = {
-    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}],
+    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}, {label:'↑ Importar CSV', cls:'btn-ghost', fn:'openModalImportCSV()'}],
     nfe:    [{label:'+ Upload XML', cls:'btn-primary', fn:'openModalNFe()'}],
     socios: [{label:'+ Novo sócio', cls:'btn-primary', fn:'openModalSocio()'}],
     pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
