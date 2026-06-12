@@ -804,7 +804,7 @@ tr:hover td { background: var(--bg); }
         <!-- Tab: Extrato -->
         <div id="socio-tab-extrato" class="socio-tab-content" style="display:none">
           <div class="card">
-            <div class="card-header"><div class="card-title">Extrato bancário pessoal</div><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="openModalImportCSVSocio()">↑ Importar CSV</button><button class="btn btn-primary btn-sm" onclick="openModalMovSocio()">+ Novo lançamento</button></div></div>
+            <div class="card-header"><div class="card-title">Extrato bancário pessoal</div><div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="openModalMovSocio()">+ Novo lançamento</button></div></div>
             <div class="table-wrap" id="socio-extrato-wrap"></div>
           </div>
         </div>
@@ -898,14 +898,14 @@ tr:hover td { background: var(--bg); }
 
 <!-- MODAL: IMPORTAR CSV BANCÁRIO -->
 <div class="modal-overlay" id="modal-import-csv">
-  <div class="modal" style="width:580px">
+  <div class="modal" style="width:600px;max-height:90vh;overflow-y:auto">
     <div class="modal-title">Importar Extrato — CSV Bancário</div>
-    <div class="alert alert-warn" style="margin-bottom:16px">
-      Suporta Banco do Brasil, Bradesco e Next. Lançamentos duplicados são ignorados automaticamente.
-    </div>
-    <div class="form-group" id="csv-socio-wrap" style="display:none">
-      <label class="form-label">Sócio *</label>
-      <select class="form-select" id="csv-socio-sel"></select>
+
+    <div class="form-group">
+      <label class="form-label">Destino *</label>
+      <select class="form-select" id="csv-destino">
+        <option value="">Selecione o destino...</option>
+      </select>
     </div>
     <div class="form-group">
       <label class="form-label">Banco *</label>
@@ -930,6 +930,10 @@ tr:hover td { background: var(--bg); }
       <input type="file" id="csv-file-input" accept=".csv,.txt" style="display:none" onchange="handleCSVFile(this.files[0])">
     </div>
     <div id="csv-preview" style="margin-top:10px"></div>
+    <div id="csv-duplicatas-wrap" style="display:none;margin-top:10px">
+      <div style="font-size:12px;font-weight:600;color:var(--amber);margin-bottom:6px">⚠️ Possíveis duplicatas encontradas — revise antes de importar:</div>
+      <div id="csv-duplicatas-lista" class="table-wrap" style="max-height:150px;overflow-y:auto"></div>
+    </div>
     <div id="csv-progress" style="display:none;margin-top:12px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:6px" id="csv-progress-text">Importando...</div>
       <div style="background:var(--border);border-radius:4px;height:6px">
@@ -2696,6 +2700,7 @@ function voltarHome() {
 // IMPORTADOR CSV BANCÁRIO
 // ============================================================
 let csvLinhasParsed = [];
+let csvDuplicatas = [];
 
 function handleCSVDrop(event) {
   const file = event.dataTransfer.files[0];
@@ -2706,67 +2711,53 @@ async function handleCSVFile(file) {
   if (!file) return;
   const text = await file.text();
   const banco = document.getElementById('csv-banco').value;
-  csvLinhasParsed = parseCSVBancario(text, banco);
-  renderCSVPreview(csvLinhasParsed);
+  const parsed = parseCSVBancario(text, banco);
+  await verificarDuplicatasCSV(parsed);
 }
 
 function parseCSVBancario(text, banco) {
   const linhas = text.split('\n').map(l => l.trim()).filter(l => l);
   const resultado = [];
-
-  // Detectar separador
   const sep = linhas[0]?.includes(';') ? ';' : ',';
 
-  // Pular cabeçalho
   const inicio = linhas.findIndex(l => {
     const lower = l.toLowerCase();
-    return lower.includes('data') && (lower.includes('valor') || lower.includes('lançamento'));
+    return lower.includes('data') && (lower.includes('valor') || lower.includes('lan'));
   });
 
   for (let i = (inicio >= 0 ? inicio + 1 : 1); i < linhas.length; i++) {
-    const linha = linhas[i];
-    if (!linha) continue;
-
-    // Parse CSV respeitando aspas
-    const cols = parseCSVLinha(linha, sep);
+    const cols = parseCSVLinha(linhas[i], sep);
     if (cols.length < 3) continue;
 
     let data, lancamento, detalhes, ndoc, valor, tipo;
 
     if (banco === 'bb') {
-      // BB: Data,"Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento"
-      data      = cols[0]?.trim();
+      data       = cols[0]?.trim();
       lancamento = cols[1]?.replace(/^"|"$/g,'').trim();
-      detalhes  = cols[2]?.replace(/^"|"$/g,'').trim();
-      ndoc      = cols[3]?.replace(/^"|"$/g,'').trim();
-      valor     = cols[4]?.replace(/^"|"$/g,'').trim();
-      tipo      = cols[5]?.replace(/^"|"$/g,'').trim();
+      detalhes   = cols[2]?.replace(/^"|"$/g,'').trim();
+      ndoc       = cols[3]?.replace(/^"|"$/g,'').trim();
+      valor      = cols[4]?.replace(/^"|"$/g,'').trim();
+      tipo       = cols[5]?.replace(/^"|"$/g,'').trim();
     } else {
-      // Genérico
-      data      = cols[0]?.trim();
+      data       = cols[0]?.trim();
       lancamento = cols[1]?.replace(/^"|"$/g,'').trim();
-      detalhes  = cols[2]?.replace(/^"|"$/g,'').trim() || '';
-      ndoc      = cols[3]?.replace(/^"|"$/g,'').trim() || '';
-      valor     = cols[4]?.replace(/^"|"$/g,'').trim() || cols[2]?.trim();
-      tipo      = cols[5]?.replace(/^"|"$/g,'').trim() || (parseValor(valor) >= 0 ? 'Entrada' : 'Saída');
+      detalhes   = cols[2]?.replace(/^"|"$/g,'').trim() || '';
+      ndoc       = cols[3]?.replace(/^"|"$/g,'').trim() || '';
+      valor      = cols[4]?.replace(/^"|"$/g,'').trim() || cols[2]?.trim();
+      tipo       = cols[5]?.replace(/^"|"$/g,'').trim() || '';
     }
 
-    // Filtrar linhas inválidas
     if (!data || !lancamento) continue;
     if (data === '00/00/0000') continue;
-    if (lancamento.includes('Saldo') || lancamento.includes('SALDO')) continue;
+    if (/saldo/i.test(lancamento)) continue;
 
-    // Parse data DD/MM/YYYY
     const dataISO = parseDateBR(data);
     if (!dataISO) continue;
 
-    // Parse valor
     const valorNum = parseValor(valor);
     if (valorNum === null) continue;
 
-    const tipoLower = tipo?.toLowerCase() || '';
-    const tipoSistema = tipoLower.includes('entrada') || valorNum > 0 ? 'credito' : 'debito';
-    const valorAbs = Math.abs(valorNum);
+    const tipoSistema = tipo?.toLowerCase().includes('entrada') || valorNum > 0 ? 'credito' : 'debito';
 
     resultado.push({
       data: dataISO,
@@ -2775,7 +2766,7 @@ function parseCSVBancario(text, banco) {
       nome_parte: lancamento,
       descricao: detalhes || lancamento,
       numero_doc: ndoc || null,
-      valor: valorAbs,
+      valor: Math.abs(valorNum),
       banco: banco.toUpperCase(),
       conciliado: false,
     });
@@ -2789,14 +2780,9 @@ function parseCSVLinha(linha, sep) {
   let dentro = false;
   for (let i = 0; i < linha.length; i++) {
     const c = linha[i];
-    if (c === '"') {
-      dentro = !dentro;
-    } else if (c === sep && !dentro) {
-      resultado.push(atual);
-      atual = '';
-    } else {
-      atual += c;
-    }
+    if (c === '"') { dentro = !dentro; }
+    else if (c === sep && !dentro) { resultado.push(atual); atual = ''; }
+    else { atual += c; }
   }
   resultado.push(atual);
   return resultado;
@@ -2811,202 +2797,178 @@ function parseDateBR(str) {
 
 function parseValor(str) {
   if (!str) return null;
-  // Remove aspas e espaços
   let s = str.replace(/"/g,'').trim();
-  if (!s || s === '0,00' || s === '') return 0;
-  // Formato BR: 1.234,56 ou -1.234,56
+  if (!s) return null;
   s = s.replace(/\./g,'').replace(',','.');
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
 }
 
-function renderCSVPreview(linhas) {
-  const prev = document.getElementById('csv-preview');
+async function verificarDuplicatasCSV(linhas) {
+  csvLinhasParsed = linhas;
+  csvDuplicatas = [];
+
   if (!linhas.length) {
-    prev.innerHTML = '<div class="alert" style="color:var(--red)">Nenhum lançamento encontrado. Verifique o formato do arquivo.</div>';
+    document.getElementById('csv-preview').innerHTML = '<div style="color:var(--red);font-size:12px;padding:8px">Nenhum lançamento encontrado. Verifique o arquivo e o banco selecionado.</div>';
     document.getElementById('csv-import-btn').style.display = 'none';
     return;
   }
 
-  const creditos = linhas.filter(l => l.tipo === 'credito');
-  const debitos  = linhas.filter(l => l.tipo === 'debito');
-  const totalC   = creditos.reduce((s,l) => s + l.valor, 0);
-  const totalD   = debitos.reduce((s,l) => s + l.valor, 0);
+  // Buscar existentes para detectar possíveis duplicatas
+  const destino = document.getElementById('csv-destino').value;
+  const [tipo, id] = destino.split(':');
 
-  prev.innerHTML = `
-    <div style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:10px">
-      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Resumo do arquivo</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px">
-        <div><span style="color:var(--text3)">Total lançamentos:</span> <strong>${linhas.length}</strong></div>
+  let existing = [];
+  if (tipo === 'socio' && id) {
+    const { data } = await sb.from('socios_movimentacao').select('data,valor,nome_parte,numero_doc').eq('socio_id', id);
+    existing = data || [];
+  } else if (tipo === 'empresa' && id) {
+    const { data } = await sb.from('movimentacao_bancaria').select('data,valor,nome_parte,numero_doc').eq('empresa_id', id);
+    existing = data || [];
+  }
+
+  const existingSet = new Set(existing.map(e => `${e.data}|${e.valor}|${e.numero_doc||''}`));
+
+  const novos = [];
+  const dups = [];
+  for (const l of linhas) {
+    const key = `${l.data}|${l.valor}|${l.numero_doc||''}`;
+    if (existingSet.has(key)) dups.push(l);
+    else novos.push(l);
+  }
+  csvDuplicatas = dups;
+
+  // Preview
+  const totalC = linhas.filter(l=>l.tipo==='credito').reduce((s,l)=>s+l.valor,0);
+  const totalD = linhas.filter(l=>l.tipo==='debito').reduce((s,l)=>s+l.valor,0);
+
+  document.getElementById('csv-preview').innerHTML = `
+    <div style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Resumo</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px">
+        <div><span style="color:var(--text3)">Total:</span> <strong>${linhas.length}</strong></div>
         <div><span style="color:var(--green)">Entradas:</span> <strong>${fmt(totalC)}</strong></div>
         <div><span style="color:var(--red)">Saídas:</span> <strong>${fmt(totalD)}</strong></div>
+        <div><span style="color:var(--amber)">Duplicatas:</span> <strong>${dups.length}</strong></div>
       </div>
     </div>
-    <div class="table-wrap" style="max-height:200px;overflow-y:auto">
+    <div class="table-wrap" style="max-height:180px;overflow-y:auto">
       <table>
-        <thead><tr><th>Data</th><th>Lançamento</th><th>Valor</th><th>Tipo</th></tr></thead>
+        <thead><tr><th>Data</th><th>Lançamento</th><th>Valor</th><th>Status</th></tr></thead>
         <tbody>
-          ${linhas.slice(0,10).map(l => `<tr>
-            <td>${fmtDate(l.data)}</td>
-            <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.nome_parte}</td>
-            <td class="td-mono" style="color:${l.tipo==='credito'?'var(--green)':'var(--red)'}">${l.tipo==='credito'?'+':'-'}${fmt(l.valor)}</td>
-            <td><span class="badge ${l.tipo==='credito'?'badge-green':'badge-red'}">${l.tipo==='credito'?'Crédito':'Débito'}</span></td>
-          </tr>`).join('')}
-          ${linhas.length > 10 ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);font-size:11px">... e mais ${linhas.length - 10} lançamentos</td></tr>` : ''}
+          ${linhas.slice(0,15).map(l => {
+            const key = `${l.data}|${l.valor}|${l.numero_doc||''}`;
+            const isDup = existingSet.has(key);
+            return `<tr style="${isDup?'background:var(--amber-light)':''}">
+              <td>${fmtDate(l.data)}</td>
+              <td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.nome_parte}</td>
+              <td class="td-mono" style="color:${l.tipo==='credito'?'var(--green)':'var(--red)'}">${l.tipo==='credito'?'+':'-'}${fmt(l.valor)}</td>
+              <td>${isDup?'<span class="badge badge-amber" style="background:var(--amber-light);color:var(--amber)">Duplicata</span>':'<span class="badge badge-green">Novo</span>'}</td>
+            </tr>`;
+          }).join('')}
+          ${linhas.length > 15 ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);font-size:11px">... e mais ${linhas.length-15} lançamentos</td></tr>` : ''}
         </tbody>
       </table>
-    </div>`;
+    </div>
+    ${dups.length > 0 ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="csv-incluir-dups" style="cursor:pointer">
+      <label for="csv-incluir-dups" style="font-size:12px;cursor:pointer;color:var(--amber)">
+        Incluir as ${dups.length} duplicata(s) mesmo assim
+      </label>
+    </div>` : ''}`;
+
   document.getElementById('csv-import-btn').style.display = '';
-}
-
-async function importarCSVSocio() {
-  const btn = document.getElementById('csv-import-btn');
-  // Usar sócio do seletor ou socioAtivo
-  const sidSel = document.getElementById('csv-socio-sel')?.value;
-  const sid = sidSel || socioAtivo;
-  if (!sid) { toast('Selecione um sócio', 'error'); btn.disabled = false; return; }
-
-  let importados = 0, duplicados = 0, erros = 0;
-  const total = csvLinhasParsed.length;
-
-  const { data: existing } = await sb.from('socios_movimentacao')
-    .select('data, valor, numero_doc, nome_parte')
-    .eq('socio_id', sid);
-
-  const existingSet = new Set(
-    (existing || []).map(e => `${e.data}|${e.valor}|${e.numero_doc||''}|${e.nome_parte||''}`)
-  );
-
-  for (let i = 0; i < csvLinhasParsed.length; i++) {
-    const l = csvLinhasParsed[i];
-    const pct = Math.round(((i+1)/total)*100);
-    document.getElementById('csv-progress-bar').style.width = pct + '%';
-    document.getElementById('csv-progress-text').textContent = `Importando ${i+1}/${total}...`;
-
-    const key = `${l.data}|${l.valor}|${l.numero_doc||''}|${l.nome_parte||''}`;
-    if (existingSet.has(key)) { duplicados++; continue; }
-
-    const { error } = await sb.from('socios_movimentacao').insert({
-      socio_id: sid,
-      data: l.data,
-      tipo: l.tipo,
-      natureza: l.natureza,
-      valor: l.valor,
-      nome_parte: l.nome_parte,
-      descricao: l.descricao,
-      banco: l.banco,
-      numero_doc: l.numero_doc,
-      conciliado: false,
-    });
-
-    if (error) { erros++; }
-    else { importados++; existingSet.add(key); }
-  }
-
-  document.getElementById('csv-progress-bar').style.width = '100%';
-  document.getElementById('csv-progress-text').textContent =
-    `Concluído! ${importados} importados · ${duplicados} duplicados · ${erros} erros`;
-
-  document.getElementById('csv-import-btn').disabled = false;
-  document.getElementById('csv-import-btn').textContent = 'Importar lançamentos';
-  toast(`${importados} lançamento(s) importado(s)!`, 'success');
-  closeModals();
-  carregarExtratSocio();
-}
-
-async function openModalImportCSV() {
-  csvLinhasParsed = [];
-  document.getElementById('csv-preview').innerHTML = '';
-  document.getElementById('csv-import-btn').style.display = 'none';
-  document.getElementById('csv-progress').style.display = 'none';
-  document.getElementById('csv-progress-bar').style.width = '0%';
-
-  // Mostrar/ocultar seletor de sócio conforme contexto
-  const socioWrap = document.getElementById('csv-socio-wrap');
-  if (socioWrap) {
-    if (window._csvDestinoSocio) {
-      socioWrap.style.display = 'block';
-      const sel = document.getElementById('csv-socio-sel');
-      if (sel && window._socios) {
-        sel.innerHTML = window._socios.map(s =>
-          `<option value="${s.id}" ${s.id === socioAtivo ? 'selected' : ''}>${s.nome}</option>`
-        ).join('');
-      }
-    } else {
-      socioWrap.style.display = 'none';
-    }
-  }
-
-  document.getElementById('modal-import-csv').classList.add('open');
 }
 
 async function importarCSV() {
   if (!csvLinhasParsed.length) return;
+
+  const destino = document.getElementById('csv-destino').value;
+  if (!destino) { toast('Selecione o destino primeiro', 'error'); return; }
+
+  const [tipo, id] = destino.split(':');
+  const incluirDups = document.getElementById('csv-incluir-dups')?.checked || false;
 
   const btn = document.getElementById('csv-import-btn');
   btn.disabled = true;
   btn.textContent = 'Importando...';
   document.getElementById('csv-progress').style.display = 'block';
 
-  // Verificar se é para sócio PF ou empresa
-  if (window._csvDestinoSocio && socioAtivo) {
-    await importarCSVSocio();
-    window._csvDestinoSocio = false;
-    return;
-  }
-  window._csvDestinoSocio = false;
+  // Filtrar duplicatas se necessário
+  const linhasParaImportar = incluirDups ? csvLinhasParsed : csvLinhasParsed.filter(l => {
+    const key = `${l.data}|${l.valor}|${l.numero_doc||''}`;
+    return !csvDuplicatas.some(d => `${d.data}|${d.valor}|${d.numero_doc||''}` === key);
+  });
 
-  // Determinar empresa ativa
-  const empId = empresaAtiva || empresas.find(e => e.grupo_id === grupoAtivo && e.is_matriz)?.id;
-  if (!empId) { toast('Selecione uma empresa primeiro', 'error'); btn.disabled = false; return; }
+  let importados = 0, erros = 0;
+  const total = linhasParaImportar.length;
 
-  let importados = 0, duplicados = 0, erros = 0;
-  const total = csvLinhasParsed.length;
-
-  // Buscar lançamentos existentes para evitar duplicatas
-  const { data: existing } = await sb.from('movimentacao_bancaria')
-    .select('data, valor, numero_doc, nome_parte')
-    .eq('empresa_id', empId);
-
-  const existingSet = new Set(
-    (existing || []).map(e => `${e.data}|${e.valor}|${e.numero_doc||''}|${e.nome_parte||''}`)
-  );
-
-  for (let i = 0; i < csvLinhasParsed.length; i++) {
-    const l = csvLinhasParsed[i];
+  for (let i = 0; i < linhasParaImportar.length; i++) {
+    const l = linhasParaImportar[i];
     const pct = Math.round(((i+1)/total)*100);
     document.getElementById('csv-progress-bar').style.width = pct + '%';
     document.getElementById('csv-progress-text').textContent = `Importando ${i+1}/${total}...`;
 
-    // Verificar duplicata
-    const key = `${l.data}|${l.valor}|${l.numero_doc||''}|${l.nome_parte||''}`;
-    if (existingSet.has(key)) { duplicados++; continue; }
-
-    const { error } = await sb.from('movimentacao_bancaria').insert({
-      empresa_id: empId,
-      data: l.data,
-      tipo: l.tipo,
-      natureza: l.natureza,
-      valor: l.valor,
-      nome_parte: l.nome_parte,
-      descricao: l.descricao,
-      banco: l.banco,
-      numero_doc: l.numero_doc,
-      conciliado: false,
-    });
-
+    let error;
+    if (tipo === 'socio') {
+      ({ error } = await sb.from('socios_movimentacao').insert({
+        socio_id: id, data: l.data, tipo: l.tipo, natureza: l.natureza,
+        valor: l.valor, nome_parte: l.nome_parte, descricao: l.descricao,
+        banco: l.banco, numero_doc: l.numero_doc, conciliado: false,
+      }));
+    } else {
+      ({ error } = await sb.from('movimentacao_bancaria').insert({
+        empresa_id: id, data: l.data, tipo: l.tipo, natureza: l.natureza,
+        valor: l.valor, nome_parte: l.nome_parte, descricao: l.descricao,
+        banco: l.banco, numero_doc: l.numero_doc, conciliado: false,
+      }));
+    }
     if (error) { erros++; console.error(error); }
-    else { importados++; existingSet.add(key); }
+    else importados++;
   }
 
   document.getElementById('csv-progress-bar').style.width = '100%';
   document.getElementById('csv-progress-text').textContent =
-    `Concluído! ${importados} importados · ${duplicados} duplicados · ${erros} erros`;
+    `Concluído! ${importados} importados · ${erros} erros`;
 
   btn.disabled = false;
   btn.textContent = 'Importar lançamentos';
-  toast(`${importados} lançamento(s) importado(s)!${duplicados > 0 ? ' ' + duplicados + ' já existiam.' : ''}`, 'success');
-  await renderExtrato();
+  toast(`${importados} lançamento(s) importado(s)!`, 'success');
+
+  // Atualizar tela correta
+  if (tipo === 'socio' && socioAtivo === id) carregarExtratSocio();
+  else if (tipo === 'empresa') await renderExtrato();
+  closeModals();
+}
+
+async function openModalImportCSV() {
+  csvLinhasParsed = [];
+  csvDuplicatas = [];
+  document.getElementById('csv-preview').innerHTML = '';
+  document.getElementById('csv-import-btn').style.display = 'none';
+  document.getElementById('csv-progress').style.display = 'none';
+  document.getElementById('csv-progress-bar').style.width = '0%';
+
+  // Popular seletor de destino com sócios e empresas
+  const sel = document.getElementById('csv-destino');
+  const socios = window._socios || [];
+  const emps = empresas.filter(e => e.grupo_id === grupoAtivo);
+
+  sel.innerHTML = '<option value="">Selecione o destino...</option>' +
+    (socios.length ? '<optgroup label="Sócios PF">' +
+      socios.map(s => `<option value="socio:${s.id}" ${window._csvDestinoSocio && s.id === socioAtivo ? 'selected' : ''}>${s.nome}</option>`).join('') +
+      '</optgroup>' : '') +
+    '<optgroup label="Empresas">' +
+      emps.map(e => `<option value="empresa:${e.id}">${e.nome.replace('- Matriz','').trim()}</option>`).join('') +
+    '</optgroup>';
+
+  window._csvDestinoSocio = false;
+  document.getElementById('modal-import-csv').classList.add('open');
+}
+
+function openModalImportCSVSocio() {
+  window._csvDestinoSocio = true;
+  openModalImportCSV();
 }
 
 // ============================================================
@@ -3312,7 +3274,7 @@ async function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
   // Topbar actions
   const acts = {
-    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}, {label:'↑ Importar CSV', cls:'btn-ghost', fn:'openModalImportCSV()'}],
+    extrato: [{label:'+ Novo lançamento', cls:'btn-primary', fn:'openModal("modal-extrato")'}, {label:'↑ Importar CSV/OFX', cls:'btn-ghost', fn:'openModalImportCSV()'}],
     nfe:    [{label:'+ Upload XML', cls:'btn-primary', fn:'openModalNFe()'}],
     socios: [{label:'+ Novo sócio', cls:'btn-primary', fn:'openModalSocio()'}],
     pagar:   [{label:'+ Nova conta a pagar', cls:'btn-primary', fn:'openModal("modal-pagar")'}],
