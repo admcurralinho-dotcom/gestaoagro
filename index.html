@@ -1298,11 +1298,23 @@ async function importarNFes() {
       }
 
       const itens = nota.itens;
-      delete nota.itens;
-      delete nota.ie_emitente; delete nota.ie_destinatario;
-      delete nota.ind_pagamento; delete nota.forma_pagamento; delete nota.duplicatas;
-
-      const obj = { ...nota }; obj[campo] = destId;
+      // Limpar campos que não existem na tabela
+      const notaLimpa = {
+        tipo: nota.tipo,
+        chave_acesso: nota.chave_acesso,
+        numero: nota.numero,
+        serie: nota.serie,
+        data_emissao: nota.data_emissao,
+        cnpj_emitente: nota.cnpj_emitente,
+        nome_emitente: nota.nome_emitente,
+        cnpj_destinatario: nota.cnpj_destinatario,
+        nome_destinatario: nota.nome_destinatario,
+        valor_total: nota.valor_total,
+        natureza_operacao: nota.natureza_operacao,
+        operacao: op,
+        status: 'ativa',
+      };
+      const obj = { ...notaLimpa }; obj[campo] = destId;
       const { data: saved, error } = await sb.from(tabela).insert(obj).select().single();
       if (error) { erro++; continue; }
 
