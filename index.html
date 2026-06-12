@@ -691,6 +691,17 @@ function renderSidebar() {
 function selecionarEntidade(tipo, id, nome) {
   entidadeAtiva = { tipo, id, nome };
   document.getElementById('topbar-entity').textContent = nome.split(' ').slice(0,3).join(' ');
+  // Limpar dados das telas ao trocar entidade
+  document.getElementById('extrato-wrap').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando...</div>';
+  document.getElementById('pagar-aberto-wrap').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('pagar-pagas-wrap').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('nfe-wrap').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('conc-body').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  // Resetar métricas
+  ['ext-receitas','ext-despesas','ext-saldo','ext-count','pagar-aberto','pagar-vencidas','pagar-pagas'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '--';
+  });
   renderSidebar();
   navegar(paginaAtiva);
 }
@@ -720,7 +731,8 @@ async function renderExtrato() {
   const mes = mesEl.value;
   const [ano, m] = mes.split('-');
   const dataInicio = `${ano}-${m}-01`;
-  const dataFim = `${ano}-${m}-31`;
+  const ultimoDia = new Date(parseInt(ano), parseInt(m), 0).getDate();
+  const dataFim = `${ano}-${m}-${String(ultimoDia).padStart(2,'0')}`;
 
   const wrap = document.getElementById('extrato-wrap');
   wrap.innerHTML = '<div class="loading"><div class="spinner"></div> Carregando...</div>';
