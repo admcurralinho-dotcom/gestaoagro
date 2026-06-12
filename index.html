@@ -903,6 +903,10 @@ tr:hover td { background: var(--bg); }
     <div class="alert alert-warn" style="margin-bottom:16px">
       Suporta Banco do Brasil, Bradesco e Next. Lançamentos duplicados são ignorados automaticamente.
     </div>
+    <div class="form-group" id="csv-socio-wrap" style="display:none">
+      <label class="form-label">Sócio *</label>
+      <select class="form-select" id="csv-socio-sel"></select>
+    </div>
     <div class="form-group">
       <label class="form-label">Banco *</label>
       <select class="form-select" id="csv-banco">
@@ -2857,12 +2861,17 @@ function renderCSVPreview(linhas) {
 
 async function importarCSVSocio() {
   const btn = document.getElementById('csv-import-btn');
+  // Usar sócio do seletor ou socioAtivo
+  const sidSel = document.getElementById('csv-socio-sel')?.value;
+  const sid = sidSel || socioAtivo;
+  if (!sid) { toast('Selecione um sócio', 'error'); btn.disabled = false; return; }
+
   let importados = 0, duplicados = 0, erros = 0;
   const total = csvLinhasParsed.length;
 
   const { data: existing } = await sb.from('socios_movimentacao')
     .select('data, valor, numero_doc, nome_parte')
-    .eq('socio_id', socioAtivo);
+    .eq('socio_id', sid);
 
   const existingSet = new Set(
     (existing || []).map(e => `${e.data}|${e.valor}|${e.numero_doc||''}|${e.nome_parte||''}`)
@@ -2878,7 +2887,7 @@ async function importarCSVSocio() {
     if (existingSet.has(key)) { duplicados++; continue; }
 
     const { error } = await sb.from('socios_movimentacao').insert({
-      socio_id: socioAtivo,
+      socio_id: sid,
       data: l.data,
       tipo: l.tipo,
       natureza: l.natureza,
@@ -2911,6 +2920,23 @@ async function openModalImportCSV() {
   document.getElementById('csv-import-btn').style.display = 'none';
   document.getElementById('csv-progress').style.display = 'none';
   document.getElementById('csv-progress-bar').style.width = '0%';
+
+  // Mostrar/ocultar seletor de sócio conforme contexto
+  const socioWrap = document.getElementById('csv-socio-wrap');
+  if (socioWrap) {
+    if (window._csvDestinoSocio) {
+      socioWrap.style.display = 'block';
+      const sel = document.getElementById('csv-socio-sel');
+      if (sel && window._socios) {
+        sel.innerHTML = window._socios.map(s =>
+          `<option value="${s.id}" ${s.id === socioAtivo ? 'selected' : ''}>${s.nome}</option>`
+        ).join('');
+      }
+    } else {
+      socioWrap.style.display = 'none';
+    }
+  }
+
   document.getElementById('modal-import-csv').classList.add('open');
 }
 
