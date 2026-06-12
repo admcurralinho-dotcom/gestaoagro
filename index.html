@@ -1298,23 +1298,43 @@ async function importarNFes() {
       }
 
       const itens = nota.itens;
-      // Limpar campos que não existem na tabela
-      const notaLimpa = {
-        tipo: nota.tipo,
-        chave_acesso: nota.chave_acesso,
-        numero: nota.numero,
-        serie: nota.serie,
-        data_emissao: nota.data_emissao,
-        cnpj_emitente: nota.cnpj_emitente,
-        nome_emitente: nota.nome_emitente,
-        cnpj_destinatario: nota.cnpj_destinatario,
-        nome_destinatario: nota.nome_destinatario,
-        valor_total: nota.valor_total,
-        natureza_operacao: nota.natureza_operacao,
-        operacao: op,
-        status: 'ativa',
-      };
-      const obj = { ...notaLimpa }; obj[campo] = destId;
+      // Montar objeto conforme tabela de destino
+      let obj = {};
+      if (tabela === 'notas_fiscais') {
+        obj = {
+          empresa_id: destId,
+          tipo: nota.tipo,
+          operacao: op,
+          chave_acesso: nota.chave_acesso || null,
+          numero: nota.numero || null,
+          serie: nota.serie || null,
+          data_emissao: nota.data_emissao || null,
+          cnpj_emitente: nota.cnpj_emitente || null,
+          nome_emitente: nota.nome_emitente || null,
+          cnpj_destinatario: nota.cnpj_destinatario || null,
+          nome_destinatario: nota.nome_destinatario || null,
+          valor_total: nota.valor_total || 0,
+          natureza_operacao: nota.natureza_operacao || null,
+          status: 'ativa',
+        };
+      } else {
+        obj = {
+          socio_id: destId,
+          tipo: nota.tipo,
+          operacao: op,
+          chave_acesso: nota.chave_acesso || null,
+          numero: nota.numero || null,
+          serie: nota.serie || null,
+          data_emissao: nota.data_emissao || null,
+          cnpj_cpf_emitente: nota.cnpj_emitente || null,
+          nome_emitente: nota.nome_emitente || null,
+          cnpj_cpf_destinatario: nota.cnpj_destinatario || null,
+          nome_destinatario: nota.nome_destinatario || null,
+          valor_total: nota.valor_total || 0,
+          natureza_operacao: nota.natureza_operacao || null,
+          status: 'ativa',
+        };
+      }
       const { data: saved, error } = await sb.from(tabela).insert(obj).select().single();
       if (error) { erro++; continue; }
 
