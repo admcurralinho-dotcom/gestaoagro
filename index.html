@@ -1170,7 +1170,10 @@ async function renderNFe() {
       <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.nome_destinatario||'--'}</td>
       <td class="td-mono" style="font-weight:600">${fmt(n.valor_total)}</td>
       <td><span class="badge ${n.status==='ativa'?'badge-green':'badge-red'}">${n.status}</span></td>
-      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletarNota('${n.id}')">✕</button></td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="verNota('${n.id}')">Ver</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletarNota('${n.id}')">✕</button>
+      </td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
@@ -1344,6 +1347,43 @@ async function importarNFes() {
         const iCamp = tabela === 'notas_fiscais' ? 'nota_id' : 'nota_id';
         await sb.from(iTab).insert(itens.map(it => ({ ...it, [iCamp]: saved.id })));
       }
+      // Criar contas a pagar se tiver vencimento
+      const tabelaPag = tabela === 'notas_fiscais' ? 'contas_pagar' : 'socios_contas_pagar';
+      const campoPag  = tabela === 'notas_fiscais' ? 'empresa_id' : 'socio_id';
+      
+      if (nota.duplicatas?.length > 0) {
+        // Tem duplicatas — criar uma conta por parcela
+        for (const dup of nota.duplicatas) {
+          const contaObj = {
+            fornecedor: nota.nome_emitente || 'Fornecedor',
+            descricao: `NF ${nota.numero}/${nota.serie} · Parcela ${dup.parcela}`,
+            valor: dup.valor,
+            vencimento: dup.vencimento,
+            numero_doc: nota.numero || null,
+            status: 'pendente',
+          };
+          contaObj[campoPag] = destId;
+          await sb.from(tabelaPag).insert(contaObj);
+        }
+        toast(`NF ${nota.numero} — ${nota.duplicatas.length} vencimento(s) criado(s)!`, 'success');
+      } else if (nota.ind_pagamento === '1') {
+        // A prazo mas sem duplicata — criar com vencimento 30 dias
+        const venc = new Date(nota.data_emissao || new Date());
+        venc.setDate(venc.getDate() + 30);
+        const contaObj = {
+          fornecedor: nota.nome_emitente || 'Fornecedor',
+          descricao: `NF ${nota.numero}/${nota.serie} — vencimento estimado`,
+          valor: nota.valor_total,
+          vencimento: venc.toISOString().slice(0,10),
+          numero_doc: nota.numero || null,
+          status: 'pendente',
+          observacao: 'Vencimento estimado — sem duplicata no XML',
+        };
+        contaObj[campoPag] = destId;
+        await sb.from(tabelaPag).insert(contaObj);
+        toast(`NF ${nota.numero} — vencimento estimado criado!`, 'success');
+      }
+
       ok++;
     } catch(e) { erro++; console.error(e); }
   }
@@ -1353,6 +1393,104 @@ async function importarNFes() {
   btn.disabled = false;
   toast(`${ok} nota(s) importada(s)!`, 'success');
   await renderNFe();
+}
+
+async function verNota(id) {
+  const tabela = entidadeAtiva.tipo === 'empresa' ? 'notas_fiscais' : 'socios_notas_fiscais';
+  const tabelaItens = entidadeAtiva.tipo === 'empresa' ? 'nf_itens' : 'socios_nf_itens';
+
+  const [nfRes, itensRes] = await Promise.all([
+    sb.from(tabela).select('*').eq('id', id).single(),
+    sb.from(tabelaItens).select('*').eq('nota_id', id).order('numero_item'),
+  ]);
+
+  const n = nfRes.data;
+  const itens = itensRes.data || [];
+  if (!n) { toast('Nota não encontrada', 'error'); return; }
+
+  const tipoLabel = { nfe:'NF-e', nfse:'NFS-e', cte:'CT-e', nfce:'NFC-e', nf_produtor:'NF Produtor' };
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay open';
+  modal.innerHTML = `<div class="modal" style="width:680px;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:var(--serif);font-size:16px;font-weight:700">${tipoLabel[n.tipo]||n.tipo} Nº ${n.numero||'--'} · Série ${n.serie||'--'}</div>
+      <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">✕</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Emitente</div>
+        <div style="font-size:13px;font-weight:600">${n.nome_emitente||'--'}</div>
+        <div style="font-size:11px;color:var(--text2)">${n.cnpj_emitente||n.cnpj_cpf_emitente||''}</div>
+      </div>
+      <div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Destinatário</div>
+        <div style="font-size:13px;font-weight:600">${n.nome_destinatario||'--'}</div>
+        <div style="font-size:11px;color:var(--text2)">${n.cnpj_destinatario||n.cnpj_cpf_destinatario||''}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Data emissão</div>
+        <div style="font-size:13px;font-weight:600">${fmtDate(n.data_emissao)}</div>
+      </div>
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Operação</div>
+        <div style="font-size:13px;font-weight:600">${n.operacao==='emitida'?'Saída':'Entrada'}</div>
+      </div>
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Valor Total</div>
+        <div style="font-size:13px;font-weight:700;color:var(--wine)">${fmt(n.valor_total)}</div>
+      </div>
+      <div style="background:var(--bg);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Status</div>
+        <div style="font-size:13px;font-weight:600">${n.status||'--'}</div>
+      </div>
+    </div>
+
+    ${n.natureza_operacao ? `<div style="background:var(--bg);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:14px;font-size:12px">
+      <span style="color:var(--text3);font-weight:600;text-transform:uppercase;font-size:10px">Natureza: </span>${n.natureza_operacao}
+    </div>` : ''}
+
+    ${n.chave_acesso ? `<div style="background:var(--bg);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:14px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Chave de acesso</div>
+      <div style="font-family:var(--mono);font-size:10px;word-break:break-all">${n.chave_acesso}</div>
+    </div>` : ''}
+
+    ${itens.length > 0 ? `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Itens (${itens.length})</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Código</th><th>Descrição</th><th>NCM</th><th>CFOP</th><th>Qtd</th><th>Vl.Unit</th><th>Vl.Total</th></tr></thead>
+          <tbody>${itens.map(it=>`<tr>
+            <td class="td-mono">${it.numero_item}</td>
+            <td class="td-mono" style="font-size:11px">${it.codigo_produto||'--'}</td>
+            <td style="font-weight:500;max-width:180px">${it.descricao||'--'}</td>
+            <td class="td-mono" style="font-size:11px">${it.ncm||'--'}</td>
+            <td class="td-mono" style="font-size:11px">${it.cfop||'--'}</td>
+            <td class="td-mono">${Number(it.quantidade||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+            <td class="td-mono">${fmt(it.valor_unitario)}</td>
+            <td class="td-mono" style="font-weight:700;color:var(--wine)">${fmt(it.valor_total)}</td>
+          </tr>`).join('')}
+          <tr style="background:var(--bg);font-weight:700">
+            <td colspan="7" style="text-align:right;padding:8px 14px">Total:</td>
+            <td class="td-mono" style="color:var(--wine);padding:8px 14px">${fmt(itens.reduce((s,i)=>s+Number(i.valor_total||0),0))}</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>` : '<div class="empty" style="padding:16px"><p>Nenhum item registrado nesta nota.</p></div>'}
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Fechar</button>
+    </div>
+  </div>`;
+
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
 async function deletarNota(id) {
